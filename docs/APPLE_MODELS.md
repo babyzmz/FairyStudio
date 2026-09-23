@@ -92,10 +92,12 @@
 | iOS 26.3 模拟器（iPhone 17 Pro，宿主 macOS 15.7.4） | 原始值：`availability=unavailable(FoundationModels.SystemLanguageModel.Availability.UnavailableReason.modelNotReady); supportsLocale(zh-Hans_AU)=true` → 映射 `modelNotReady` | `FairyStudioTests` 输出 `[FAIRY-AVAILABILITY]`；UI 测试输出 `[FAIRY-AVAILABILITY-UI] onDevice=modelNotReady pcc=pccSDKMissing headline=AI 当前不可用` |
 | iOS 26.3 模拟器（iPad Pro 11-inch (M5)） | 见 docs/progress/M0-B.md 的 build-verify 汇总 | `scripts/build-verify.sh` |
 | PCC（所有环境） | `pccSDKMissing` | 同上 |
+| iPhone 16 Pro Max 实机（iOS 27.0，2026-09-24 M0-C） | **受阻：未能安装到设备**。DDI 可用（`ddiServicesAvailable: true`），但构建在签名步骤失败：`No Account for Team "66F6479Y4Q"` / `No profiles for 'com.fairystudio.app' were found`。可用性真实值与真实调用均未取得 | `scripts/device-verify.sh`（运行 `OnDeviceModelCallTests` 并输出 `[FAIRY-MODEL-CALL]` 行） |
 
 说明：模拟器报告的是 `modelNotReady`，而不是 `deviceNotEligible`——这是系统原样返回的值，本代码未做推断。按 docs/ENVIRONMENT.md，模拟器上的 Foundation Models 需要 macOS 26 宿主，因此该状态在当前宿主上不会变为可用。
 
-**真实成功调用：已实现待实机**。需要 iPhone 16 Pro Max（iOS 27.0）+ Xcode 27（macOS 26.6+）部署，或 macOS 26 宿主上的模拟器。届时在「AI 状态」页输入提示并记录实际后端名与返回，补入本表。
+**真实成功调用：已实现待实机**。M0-C 已加入 `FairyStudioTests/OnDeviceModelCallTests`：可用时经 ModelBroker 发送「用一句话介绍你自己」，记录实际后端、耗时与响应前 200 字；不可用时原样记录原因、不调用、无假响应。
+2026-09-24 复核：Xcode 26.3 与 iOS 27.0 实机的 DDI 可用，阻塞点改为签名账户（见 docs/ENVIRONMENT.md「实测变化」）。解除后运行 `scripts/device-verify.sh` 即可补入本表。
 
 ## 7. 隐私与上传策略
 

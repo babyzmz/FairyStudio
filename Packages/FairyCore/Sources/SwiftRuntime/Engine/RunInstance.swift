@@ -32,10 +32,14 @@ final class EventEmitter: Sendable {
 
 /// 一个运行实例。actor 运行在专用线程执行器上（非 MainActor）。
 ///
-/// 事件顺序（严格按 RunState）：
+/// 事件顺序（严格按 RunState；契约裁决 CR-1 / B-7：每个终止都先发 stateChanged 再发 finished，随后事件流 finish）：
 /// - 成功：validating → preparing → running → [render/console…] → (stopping → stopped → finished(.completed | .stoppedByUser))
-/// - 校验失败：validating → diagnostic… → failed（事件流结束，不发 finished；见 CONTRACT_REQUESTS.md）
-/// - 运行错误：… → diagnostic(runtimeTrap/budgetExceeded…) → failed → finished(.trap | .budgetExceeded | .internalError)
+/// - 校验失败（含入口无效）：validating → diagnostic… → failed → finished(.validationFailed)
+/// - 运行错误：… → diagnostic(runtimeTrap…) → failed → finished(.trap | .internalError)
+/// - 预算超限：… → diagnostic(budgetExceeded) → interrupted → finished(.budgetExceeded)
+///
+/// 生命周期输入（契约裁决 B-5 / CR-2）：`.appear/.disappear(NodeID)` 只做记账，不执行用户代码；
+/// onAppear / onDisappear / task 的闭包只在宿主发送对应 `.action(ActionID)` 时执行。
 actor RunInstance {
     nonisolated let executor: ThreadExecutor
     nonisolated var unownedExecutor: UnownedSerialExecutor { executor.asUnownedSerialExecutor() }
@@ -57,6 +61,10 @@ actor RunInstance {
     private var revision: UInt64 = 0
     private var lastInputSequence: UInt64?
     private var isUIEntry = false
+    /// 当前处于“已出现”状态的节点（宿主 `.appear` 加入、`.disappear` 移除）。只做记账，不触发用户代码。
+    private var appearedNodes = Set<String>()
+    /// 收到的生命周期输入次数（appear, disappear），测试与诊断用。
+    private var lifecycleCounts = (appear: 0, disappear: 0)
 
     init(runID: RunID, emitter: EventEmitter, cancel: CancelToken, budget: ExecutionBudget, options: RunOptions,
          executor: ThreadExecutor, counters: RuntimeLiveCounters) {
@@ -102,10 +110,8 @@ actor RunInstance {
             emitter.emit(.diagnostic(d))
         }
         guard !out.hasErrors, let program = out.program else {
-            terminal = true
-            setState(.failed)
-            emitter.finish()
-            executor.requestShutdown()
+            // CR-1：校验失败同样以 stateChanged(.failed) + finished(.validationFailed) 终止。
+            becomeTerminal(state: .failed, reason: .validationFailed)
             return
         }
         if cancel.isCancelled { return }
@@ -168,7 +174,8 @@ actor RunInstance {
 
     private func entryError(_ message: String) {
         diagnostic(.typeCheck, message, capability: "syntax.mainApp")
-        becomeTerminal(state: .failed, reason: .internalError(message))
+        // 入口无效属于静态校验失败（尚未执行任何用户代码）。
+        becomeTerminal(state: .failed, reason: .validationFailed)
     }
 
     private func runScript(function f: Int) async {
@@ -232,7 +239,8 @@ actor RunInstance {
             becomeTerminal(state: .failed, reason: .trap(msg))
         case .budget(let kind, let msg):
             diagnostic(.budgetExceeded, "预算超限（\(kind.rawValue)）：\(msg)", range: failure.range)
-            becomeTerminal(state: .failed, reason: .budgetExceeded(msg))
+            // 契约：budgetExceeded → interrupted（被预算中断，不是程序错误）。
+            becomeTerminal(state: .interrupted, reason: .budgetExceeded(msg))
         case .typeMismatch(let msg):
             diagnostic(.typeCheck, "运行时类型错误：\(msg)\(whereText)", range: failure.range)
             becomeTerminal(state: .failed, reason: .trap(msg))
@@ -263,9 +271,15 @@ actor RunInstance {
                 let newValue = try TransferConvert.fromTransfer(value, matching: current)
                 try b.set(newValue)
             case .appear(let nid):
-                for f in evaluator.appearHandlers[nid.rawValue] ?? [] { _ = try evaluator.vm.invoke(f, []) }
+                // B-5：只记账；用户闭包由宿主另发的 .action(ActionID) 执行，避免执行两次。
+                lifecycleCounts.appear += 1
+                if evaluator.lifecycleNodes.contains(nid.rawValue) { appearedNodes.insert(nid.rawValue) }
+                return
             case .disappear(let nid):
-                for f in evaluator.disappearHandlers[nid.rawValue] ?? [] { _ = try evaluator.vm.invoke(f, []) }
+                // B-5：只记账。M0 的 .task 为同步子集，这里没有可取消的任务。
+                lifecycleCounts.disappear += 1
+                appearedNodes.remove(nid.rawValue)
+                return
             case .navigationPop, .navigationPush, .dismissSheet, .capabilityResponse:
                 return   // M0 未实现的输入：忽略
             }
@@ -286,6 +300,11 @@ actor RunInstance {
 
     func snapshot() -> (state: RunState, revision: UInt64, actionIDs: [String], bindingIDs: [String]) {
         (state, revision, evaluator.map { Array($0.actions.keys).sorted() } ?? [], evaluator.map { Array($0.bindings.keys).sorted() } ?? [])
+    }
+
+    /// 生命周期记账快照：当前已出现的节点、收到的 appear / disappear 次数。
+    func lifecycleSnapshot() -> (appeared: [String], appearCount: Int, disappearCount: Int) {
+        (appearedNodes.sorted(), lifecycleCounts.appear, lifecycleCounts.disappear)
     }
 }
 
@@ -331,14 +350,26 @@ public final class SwiftRunHandle: RunHandle {
     }
 
     /// 协作式停止：设置取消标志 → 等待启动任务结束 → 发出 stopping/stopped/finished → 执行线程退出后返回。
+    /// 契约（B-7）：返回前事件流已 finish；终止事件（stateChanged + finished）已全部发出。
     public func stop() async {
         cancel.cancel()
         let t = startTask.withLock { $0 }
         await t?.value
         await instance.shutdown()
+        // shutdown/becomeTerminal 已 finish 事件流；这里再兜底一次（幂等），保证 stop() 返回时流一定已结束。
+        emitter.finish()
         executor.requestShutdown()
         await executor.join()
         stopped.withLock { $0 = true }
+    }
+
+    /// 事件流是否已结束（测试用：验证 stop() 返回前已 finish）。
+    public var isEventStreamFinished: Bool { emitter.isFinished }
+
+    /// 生命周期记账快照（测试用）。
+    public func lifecycleSnapshot() async -> (appeared: [NodeID], appearCount: Int, disappearCount: Int) {
+        let s = await instance.lifecycleSnapshot()
+        return (s.appeared.map(NodeID.init), s.appearCount, s.disappearCount)
     }
 
     /// 等待启动阶段（校验 + 初次运行/渲染）完成。

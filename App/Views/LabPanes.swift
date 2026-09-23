@@ -2,32 +2,44 @@ import SwiftUI
 import RuntimeContracts
 import NativeBridge
 
-/// 源码编辑区（M0：TextEditor；M1 换 TextKit 2 原生编辑器）。
+/// 源码编辑区（M0：CodeTextView；M1 换 TextKit 2 原生编辑器）。
 struct SourceEditorPane: View {
     @Bindable var studio: StudioModel
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("文件", selection: $studio.selectedFileID) {
-                ForEach(studio.files) { file in
-                    Text((file.path as NSString).lastPathComponent).tag(file.id)
+            HStack(spacing: 8) {
+                Picker("文件", selection: $studio.selectedFileID) {
+                    ForEach(studio.files) { file in
+                        Text(file.fileName).tag(file.id)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("editor.filePicker")
+                Button {
+                    studio.reverseFileOrder()
+                } label: {
+                    Label("交换文件顺序", systemImage: "arrow.left.arrow.right")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("editor.swapOrder")
             }
-            .pickerStyle(.segmented)
             .padding(.horizontal)
-            .padding(.vertical, 8)
-            .accessibilityIdentifier("editor.filePicker")
+            .padding(.top, 8)
+            Text(verbatim: "传给运行时的文件顺序：\(studio.fileOrderDescription)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+                .padding(.vertical, 4)
+                .accessibilityIdentifier("editor.order")
 
-            TextEditor(text: Binding(
-                get: { studio.binding(for: studio.selectedFileID)?.contents ?? "" },
+            CodeTextView(text: Binding(
+                get: { studio.contents(of: studio.selectedFileID) },
                 set: { studio.updateContents(of: studio.selectedFileID, to: $0) }
             ))
-            .font(.system(.body, design: .monospaced))
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
-            .scrollDismissesKeyboard(.interactively)
-            .padding(.horizontal, 8)
-            .accessibilityIdentifier("editor.text")
+            .padding(.horizontal, 4)
         }
     }
 }
@@ -86,12 +98,16 @@ struct PreviewPane: View {
 /// 诊断/控制台抽屉：折叠时显示计数，展开后分为诊断与控制台两个列表。
 struct ConsoleDrawer: View {
     let coordinator: RunCoordinator
+    var budgetDescription: String = ""
     @Binding var isExpanded: Bool
     @State private var tab: DrawerTab = .diagnostics
 
     enum DrawerTab: String, CaseIterable, Identifiable {
         case diagnostics = "诊断"
         case console = "控制台"
+        #if DEBUG
+        case metrics = "指标"
+        #endif
         var id: String { rawValue }
     }
 
@@ -124,28 +140,51 @@ struct ConsoleDrawer: View {
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
-                List {
-                    switch tab {
-                    case .diagnostics:
-                        if coordinator.diagnostics.isEmpty {
-                            Text("没有诊断").foregroundStyle(.secondary)
-                        }
-                        ForEach(coordinator.diagnostics) { diagnostic in
-                            DiagnosticRow(diagnostic: diagnostic)
-                        }
-                    case .console:
-                        ForEach(coordinator.console) { entry in
-                            Text(verbatim: entry.text)
-                                .font(.caption.monospaced())
-                                .foregroundStyle(entry.stream == .stderr ? Color.red : (entry.stream == .debug ? Color.secondary : Color.primary))
-                        }
+                .accessibilityIdentifier("console.tabs")
+                #if DEBUG
+                if tab == .metrics {
+                    // 非惰性：所有指标行都在无障碍树中（UI 测试读取），不依赖滚动位置。
+                    ScrollView {
+                        MetricsRows(coordinator: coordinator, budgetDescription: budgetDescription)
+                            .padding(.horizontal)
+                            .padding(.vertical, 8)
                     }
+                    .frame(minHeight: 140, idealHeight: 220, maxHeight: 280)
+                } else {
+                    entriesList
                 }
-                .listStyle(.plain)
-                .frame(minHeight: 140, idealHeight: 220, maxHeight: 280)
+                #else
+                entriesList
+                #endif
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
+    }
+
+    private var entriesList: some View {
+        List {
+            switch tab {
+            case .diagnostics:
+                if coordinator.diagnostics.isEmpty {
+                    Text("没有诊断").foregroundStyle(.secondary)
+                }
+                ForEach(coordinator.diagnostics) { diagnostic in
+                    DiagnosticRow(diagnostic: diagnostic)
+                }
+            case .console:
+                ForEach(coordinator.console) { entry in
+                    Text(verbatim: entry.text)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(entry.stream == .stderr ? Color.red : (entry.stream == .debug ? Color.secondary : Color.primary))
+                }
+            #if DEBUG
+            case .metrics:
+                EmptyView()
+            #endif
+            }
+        }
+        .listStyle(.plain)
+        .frame(minHeight: 140, idealHeight: 220, maxHeight: 280)
     }
 }
 
@@ -188,3 +227,53 @@ struct DiagnosticRow: View {
         }
     }
 }
+
+#if DEBUG
+/// DEBUG 诊断指标：实例计数、引擎存活资源、进程内存、进入运行 / 停止耗时。全部来自真实测量，只读。
+struct MetricsRows: View {
+    let coordinator: RunCoordinator
+    let budgetDescription: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button("刷新指标") { coordinator.refreshMetrics() }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("metrics.refresh")
+            rows
+        }
+    }
+
+    @ViewBuilder
+    private var rows: some View {
+        metric("状态序列", coordinator.stateHistory.map(\.rawValue).joined(separator: "→"), id: "metrics.stateHistory")
+        metric("预算", budgetDescription, id: "metrics.budget")
+        metric("协调器持有实例", "\(coordinator.activeInstanceCount)", id: "metrics.activeInstances")
+        metric("引擎存活（实例/线程/任务）", coordinator.engineLiveCounts.map { "\($0.instances)/\($0.threads)/\($0.tasks)" } ?? "未读取",
+               id: "metrics.engineLive")
+        metric("已启动 / 已释放实例", "\(coordinator.startedRunCount)/\(coordinator.releasedInstanceCount)", id: "metrics.runCounts")
+        metric("常驻内存 MB", coordinator.memory.map { String(format: "%.1f", $0.residentMB) } ?? "未读取", id: "metrics.residentMB")
+        metric("内存占用 phys_footprint MB", coordinator.memory.map { String(format: "%.1f", $0.footprintMB) } ?? "未读取",
+               id: "metrics.footprintMB")
+        metric("进入运行耗时 ms", Self.ms(coordinator.lastStartLatency), id: "metrics.startLatency")
+        metric("校验耗时 ms", Self.ms(coordinator.lastValidationDuration), id: "metrics.validation")
+        metric("停止→终态 ms", Self.ms(coordinator.lastStopLatency), id: "metrics.stopLatency")
+        metric("停止→实例释放 ms", Self.ms(coordinator.lastStopCompletionLatency), id: "metrics.stopCompletion")
+    }
+
+    private func metric(_ title: String, _ value: String, id: String) -> some View {
+        LabeledContent {
+            Text(verbatim: value)
+                .font(.caption.monospaced())
+                .accessibilityIdentifier(id)
+        } label: {
+            Text(title).font(.caption)
+        }
+    }
+
+    static func ms(_ duration: Duration?) -> String {
+        guard let duration else { return "—" }
+        let (seconds, attoseconds) = duration.components
+        return String(format: "%.1f", Double(seconds) * 1000 + Double(attoseconds) / 1e15)
+    }
+}
+#endif

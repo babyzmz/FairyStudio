@@ -93,7 +93,7 @@ ProgramSource ──► Parse ──► Index ──► Resolve/Compile ──�
 
 | 预算 | 检查位置 | 结果 |
 |---|---|---|
-| 取消（stop） | 每 1024 条指令、每个循环回边、每次函数调用 | 抛 `cancelled`，由 `stop()` 发出 stopping/stopped/finished(.stoppedByUser) |
+| 取消（stop） | 每 1024 条指令、每个循环回边、每次函数调用 | 抛 `cancelled`，由 `stop()` 发出 stopping/stopped/finished(.stoppedByUser)，返回前 finish 事件流 |
 | `maxSteps` | 每 1024 条指令、循环回边、函数调用 | `budgetExceeded`。按"执行单元"计：脚本入口为整个脚本；UI 入口为每次初次渲染或每次输入处理（含重新渲染） |
 | `maxCallDepth` | 函数调用（`pushFrame`） | `budgetExceeded`；另有宿主重入上限 160 层（闭包回调嵌套） |
 | `maxHeapBytesApprox` | 每 64×1024 条指令做一次近似堆扫描（栈、全局、捕获；大集合抽样前 16 个元素外推） | `budgetExceeded` |
@@ -132,10 +132,18 @@ ProgramSource ──► Parse ──► Index ──► Resolve/Compile ──�
 |---|---|
 | 脚本正常结束 | `validating → preparing → running → console… → stopping → stopped → finished(.completed)` |
 | 用户停止 | `… running → [render/console…] → stopping → stopped → finished(.stoppedByUser)` |
-| 运行错误 | `… running → … → diagnostic(runtimeTrap / budgetExceeded / typeCheck / unsupportedAPI) → failed → finished(.trap / .budgetExceeded / .internalError)` |
-| 校验失败 | `validating → diagnostic… → failed`，事件流结束（契约没有对应 ExitReason，见 CONTRACT_REQUESTS.md） |
+| 运行错误 | `… running → … → diagnostic(runtimeTrap / typeCheck / unsupportedAPI / internalError) → failed → finished(.trap / .internalError)` |
+| 预算超限 | `… running → … → diagnostic(budgetExceeded) → interrupted → finished(.budgetExceeded)`（M0-C 起由 failed 改为 interrupted，与契约映射一致） |
+| 校验失败（含入口无效） | `validating → diagnostic… → failed → finished(.validationFailed)`（CR-1 裁决，M0-C 实现） |
 
-`finished` 总是最后一个事件，随后事件流结束。所有事件带 runID 与从 1 开始连续递增的 sequence。
+每个终止都先发 `stateChanged`（固定映射：completed / stoppedByUser → stopped，budgetExceeded → interrupted，
+trap / internalError / validationFailed → failed），再发 `finished`；`finished` 总是最后一个事件，随后事件流结束。
+`stop()` 返回前事件流一定已 finish（`SwiftRunHandle.isEventStreamFinished`；`ContractAlignmentTests` 覆盖三种情形）。
+所有事件带 runID 与从 1 开始连续递增的 sequence。
+
+生命周期输入（B-5 / CR-2 裁决）：`onAppear / onDisappear / task` 的闭包只在宿主发送对应 `.action(ActionID)` 时执行；
+宿主另发的 `.appear(NodeID)` / `.disappear(NodeID)` 只记账（`RunInstance.appearedNodes`，只接受带生命周期 modifier 的节点），
+不执行用户代码、不触发重新渲染。M0 的 `.task` 为同步子集，`.disappear` 时没有可取消的任务。
 
 ## 8. 动态回退
 
@@ -150,7 +158,7 @@ ProgramSource ──► Parse ──► Index ──► Resolve/Compile ──�
 - 默认参数只在静态解析的调用中生效；嵌套函数不支持默认参数与标签。
 - 计算属性为只读；init 不做确定初始化检查。
 - print 对嵌套超过 256 层的值输出 `…`。
-- SwiftUI：NavigationStack 只渲染根内容；`onAppear`/`task` 由宿主通过 `.appear(NodeID)`（或对应 ActionID）触发，运行时不自动触发；
+- SwiftUI：NavigationStack 只渲染根内容；`onAppear`/`task` 由宿主发送对应 ActionID 触发（`.appear(NodeID)` 只记账），运行时不自动触发；
   `.task` 为同步子集；Color 只能作为修饰符参数；修饰符参数只接受文本样式/命名颜色等常量。
 - 性能（debug 构建、本机 macOS 实测）：`for i in 0..<1_000_000 { total &+= i % 7 }` 约 1.4 s（user），
   每次迭代约 10 条指令，即约 7 百万条指令/秒；默认 `maxSteps = 5_000_000` 约对应 50 万次这样的迭代（超出即 budgetExceeded）。

@@ -63,12 +63,10 @@ enum ModifierChain {
             return AnyView(view.multilineTextAlignment(resolved))
         case let .lineLimit(limit):
             return AnyView(view.lineLimit(limit.map { max($0, 1) }))
-        case let .onAppear(action):
-            return AnyView(view.onAppear { send(.action(action)) })
-        case let .onDisappear(action):
-            return AnyView(view.onDisappear { send(.action(action)) })
-        case let .task(action):
-            return AnyView(view.task { send(.action(action)) })
+        case .onAppear, .onDisappear, .task:
+            // 生命周期 modifier 由 RenderNodeView 统一挂接（LifecycleHooks）：发送 .action 之外另发 .appear/.disappear(NodeID)，
+            // 且每个节点只挂一次。这里不重复挂接，避免执行两次。
+            return view
         case let .accessibilityLabel(label):
             return AnyView(view.accessibilityLabel(Text(verbatim: label)))
         case let .animation(kind, valueKey):

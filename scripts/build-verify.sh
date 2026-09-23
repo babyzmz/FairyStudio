@@ -58,7 +58,7 @@ for destination in "${DESTINATIONS[@]}"; do
   status=$?
   echo "exit=$status" | tee -a "$SUMMARY"
   # 汇总：Swift Testing 与 XCTest 的结果行、失败行、最终结论。
-  grep -E "Test run with [0-9]+ tests|^✘|Executed [0-9]+ tests?, with|Test Case .*(passed|failed)|: error:|\*\* (BUILD|TEST) (SUCCEEDED|FAILED) \*\*|^\[FAIRY-AVAILABILITY" "$log" \
+  grep -E "Test run with [0-9]+ tests|^✘|Executed [0-9]+ tests?, with|Test Case .*(passed|failed)|: error:|\*\* (BUILD|TEST) (SUCCEEDED|FAILED) \*\*|^\[FAIRY-" "$log" \
     | sed -E 's/ \([0-9.]+ seconds\)//' | sort -u | tee -a "$SUMMARY"
   if [[ $status -ne 0 ]]; then overall=$status; fi
 done

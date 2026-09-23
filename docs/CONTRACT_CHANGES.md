@@ -16,3 +16,10 @@
 | CR-5 started() | 不加；宿主等待首个 `.render` | 无 |
 | CR-6 ID 格式 | 声明不透明 | Identifiers 注释 |
 | CR-7 RunOptions | 记录，M3 候选运行使用 | 无 |
+
+## 2026-09-24 M0-C 实现对齐（RuntimeContracts 未改动）
+按上表裁决对齐双方实现，契约源码无变更：
+| 裁决 | SwiftRuntime | NativeBridge / App | 测试 |
+|---|---|---|---|
+| CR-1 / B-7 终止事件 | 校验失败（含入口无效）发 `stateChanged(.failed)` → `finished(.validationFailed)`；预算超限改为 `stateChanged(.interrupted)`（原为 failed）；`stop()` 返回前兜底 `finish()` 事件流 | RunCoordinator 在自身校验失败时记 `exitReason = .validationFailed`；状态机只前进（忽略引擎启动时重复的 validating / preparing 与重复的 stopping） | `ContractAlignmentTests.everyTerminationHasStateChangedThenFinished`、`stopFinishesEventStreamBeforeReturning`；`EntryPointTests.validationFailureEndsStreamWithFailedState` |
+| B-5 / CR-2 生命周期 | `.appear/.disappear(NodeID)` 只记账（`appearedNodes`），不执行用户代码、不重新渲染；闭包只由 `.action` 执行 | `LifecycleInputs` + `LifecycleHooks`：出现时 `.appear(NodeID)` + 各 onAppear 的 `.action`；task 启动时 `.action`；消失时各 onDisappear 的 `.action` + `.disappear(NodeID)`；每节点只挂一次 | `ContractAlignmentTests.appearAndDisappearOnlyRecordLifecycle`；`LifecycleInputsTests`（macOS，含 NSHostingView 真实挂载）；`BridgeLifecycleTests`（iOS 模拟器 UIHostingController 挂载/移除） |

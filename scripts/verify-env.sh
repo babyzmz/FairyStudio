@@ -58,7 +58,18 @@ identities="$(security find-identity -v -p codesigning 2>/dev/null || true)"
 printf '有效身份数：%s\n' "$(printf '%s\n' "$identities" | grep -c 'Apple Development' || true)" >> "$LOG"
 printf '%s\n' "$identities" | sed -nE 's/.*\(([A-Z0-9]{10})\)".*/Team \1/p' | sort -u >> "$LOG"
 profiles="$HOME/Library/MobileDevice/Provisioning Profiles"
-printf 'provisioning profile 数：%s\n' "$(find "$profiles" -name '*.mobileprovision' 2>/dev/null | wc -l | tr -d ' ')" >> "$LOG"
+printf 'provisioning profile 数（~/Library/MobileDevice）：%s\n' "$(find "$profiles" -name '*.mobileprovision' 2>/dev/null | wc -l | tr -d ' ')" >> "$LOG"
+# Xcode 16+ 把自动签名下载的 profile 放在 UserData 下；只输出 Team ID 与数量。
+user_profiles="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+printf 'provisioning profile 数（Xcode UserData）：%s\n' "$(find "$user_profiles" -name '*.mobileprovision' 2>/dev/null | wc -l | tr -d ' ')" >> "$LOG"
+for f in "$user_profiles"/*.mobileprovision; do
+  [[ -f "$f" ]] || continue
+  security cms -D -i "$f" 2>/dev/null | plutil -extract TeamIdentifier.0 raw -o - - 2>/dev/null | sed 's/^/  profile Team /' >> "$LOG"
+done
+# Xcode「设置 → 账户」中已登录账户可用的开发团队（只输出 Team ID 与类型，不输出账户名）。
+printf 'Xcode 账户可用的开发团队：\n' >> "$LOG"
+defaults read com.apple.dt.Xcode IDEProvisioningTeamByIdentifier 2>/dev/null \
+  | sed -nE 's/.*teamID = "?([A-Z0-9]{10})"?;.*/  Team \1/p; s/.*teamType = "?([^";]+)"?;.*/    类型 \1/p' >> "$LOG" || true
 
 section "XcodeGen"
 run which xcodegen

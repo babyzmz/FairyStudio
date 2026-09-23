@@ -67,13 +67,16 @@ struct EntryPointTests {
         for await e in h.events { out.envelopes.append(e) }
         await h.stop()
         #expect(out.states.last == .failed)
+        #expect(out.finished == .validationFailed)
         #expect(out.errors.contains { $0.message.contains("Missing") })
     }
 
+    /// CR-1：校验失败 = validating → diagnostic… → failed → finished(.validationFailed)，随后事件流结束。
     @Test func validationFailureEndsStreamWithFailedState() async throws {
         let out = try await runScript("let x: Int = \"text\"\nprint(x)")
         #expect(out.states == [.validating, .failed])
-        #expect(out.finished == nil)
+        #expect(out.finished == .validationFailed)
+        if case .finished? = out.envelopes.last?.event {} else { Issue.record("最后一个事件应为 finished") }
         #expect(out.errors.contains { $0.kind == .typeCheck })
     }
 

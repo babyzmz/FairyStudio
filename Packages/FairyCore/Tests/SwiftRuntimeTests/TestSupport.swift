@@ -119,9 +119,6 @@ final class UISession {
                 return t
             case .finished:
                 return nil
-            case .stateChanged(.failed):
-                // 校验失败时没有 finished：继续读到流结束
-                continue
             default:
                 continue
             }

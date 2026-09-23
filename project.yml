@@ -38,6 +38,10 @@ targets:
       - path: App
         excludes:
           - "Info.plist"
+      # TemplateLibrary 雏形：模板源码作为文件夹引用整体拷入 App 包（Templates/<名称>/…），不参与编译。
+      - path: Templates
+        type: folder
+        buildPhase: resources
     info:
       path: App/Info.plist
       properties:
@@ -64,16 +68,7 @@ targets:
           - NativeBridge
           - FoundationAI
           - SwiftRuntime
-      # DevFixtures：只建立构建依赖、不进入 Link Binary 阶段；仅 Verify-Debug 通过 OTHER_LDFLAGS 链接（见下）。
-      - package: FairyCore
-        product: DevFixtures
-        link: false
-    settings:
-      configs:
-        # 只有 Verify-Debug 链接夹具引擎；Debug / Release / Verify-Release 的链接产物不含 DevFixtures
-        # （scripts/check-release-link.sh 校验）。App 代码中对应的 import 也只在 FAIRY_VERIFY_BUILD && DEBUG 下编译。
-        Verify-Debug:
-          OTHER_LDFLAGS: ["$(inherited)", "$(BUILT_PRODUCTS_DIR)/DevFixtures.o"]
+    # M0-C：App 的任何配置都不再依赖或链接 DevFixtures（夹具引擎只进入 FairyStudioTests，见下；scripts/check-release-link.sh 校验）。
 
   FairyStudioTests:
     type: bundle.unit-test
@@ -87,12 +82,18 @@ targets:
       - path: Tests/FairyStudioTests
     dependencies:
       - target: FairyStudio
+      # DevFixtures（夹具引擎）只供本测试目标使用：以 link: false 建立构建依赖，再把 DevFixtures.o 单独链接进测试包。
+      # 不链接整个产品，避免把 RuntimeContracts 再复制一份进测试包（其符号来自宿主 App）。
+      - package: FairyCore
+        product: DevFixtures
+        link: false
     # 测试包由 App 宿主加载（TEST_HOST / BUNDLE_LOADER），包模块的符号来自宿主，不重复链接。
     # 产品名来自 Brand.xcconfig（含空格），因此显式给出宿主路径。
     settings:
       base:
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/$(FAIRY_PRODUCT_NAME).app/$(FAIRY_PRODUCT_NAME)"
         BUNDLE_LOADER: "$(TEST_HOST)"
+        OTHER_LDFLAGS: ["$(inherited)", "$(BUILT_PRODUCTS_DIR)/DevFixtures.o"]
 
   FairyStudioUITests:
     type: bundle.ui-testing

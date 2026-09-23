@@ -84,3 +84,24 @@ struct CounterFixtureTests {
         }
     }
 }
+
+/// M0-C：App 包内的 Counter 模板（仓库 Templates/Counter）必须与本夹具逐字节一致，
+/// 保证模拟器 / 实机上跑的就是 macOS 单测验证过的同一份源码。
+@Suite("App 模板与夹具一致")
+struct AppTemplateConsistencyTests {
+    @Test func appCounterTemplateMatchesFixture() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)   // …/Packages/FairyCore/Tests/SwiftRuntimeTests/CounterFixtureTests.swift
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let template = repoRoot.appendingPathComponent("Templates/Counter")
+        let fixture = try TestSupport.loadDirectory("counter")
+        #expect(fixture.count == 2)
+        for file in fixture {
+            let copy = try String(contentsOf: template.appendingPathComponent(file.path), encoding: .utf8)
+            #expect(copy == file.contents, "Templates/Counter/\(file.path) 与夹具不一致")
+        }
+        let manifest = try String(contentsOf: template.appendingPathComponent("template.json"), encoding: .utf8)
+        for file in fixture { #expect(manifest.contains("\"\(file.path)\"")) }
+        #expect(manifest.contains("\"rootView\": \"ContentView\""))
+    }
+}

@@ -175,8 +175,12 @@ struct StateAndViewTests {
         let t2 = try await s.tap("Show")
         #expect(t2?.root.texts.contains("detail") == true)
         #expect(t2?.root.button(labeled: "Hide") != nil)
-        // onAppear 由宿主通过 .appear(NodeID) 触发
+        // onAppear 闭包由宿主发送对应 .action(ActionID) 触发（契约裁决 B-5）；.appear(NodeID) 只记账。
+        guard case .onAppear(let appearAction)? = list.modifiers.first(where: { if case .onAppear = $0 { return true }; return false }) else {
+            Issue.record("List 应带 onAppear"); return
+        }
         await s.send(.appear(list.id))
+        await s.send(.action(appearAction))
         let t3 = await s.nextRender()
         #expect(t3?.root.texts.contains("appeared 1") == true)
         await s.stop()

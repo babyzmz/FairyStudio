@@ -14,9 +14,9 @@ final class ViewEvaluator {
     let runToken: String
     private(set) var actions: [String: Value] = [:]
     private(set) var bindings: [String: BindingValue] = [:]
-    /// NodeID → onAppear / task 闭包
-    private(set) var appearHandlers: [String: [Value]] = [:]
-    private(set) var disappearHandlers: [String: [Value]] = [:]
+    /// 带 onAppear / onDisappear / task 的节点（宿主会为它们发送 .appear/.disappear 记账输入）。
+    /// 闭包本身只登记在 `actions` 中，由宿主发送对应 `.action(ActionID)` 触发（契约裁决 B-5）。
+    private(set) var lifecycleNodes: Set<String> = []
     private(set) var warnings: [String] = []
     private var reportedWarnings = Set<String>()
 
@@ -30,8 +30,7 @@ final class ViewEvaluator {
     func render(root: Value) throws -> RenderNode {
         actions = [:]
         bindings = [:]
-        appearHandlers = [:]
-        disappearHandlers = [:]
+        lifecycleNodes = []
         warnings = []
         store.beginRender()
         let nodes = try evaluate(root, path: "root")
@@ -174,17 +173,17 @@ final class ViewEvaluator {
                 case .onAppear(let f):
                     let aid = actionID(nid, "appear")
                     actions[aid.rawValue] = f
-                    appearHandlers[nid, default: []].append(f)
+                    lifecycleNodes.insert(nid)
                     nodes[i].modifiers.append(.onAppear(aid))
                 case .task(let f):
                     let aid = actionID(nid, "task")
                     actions[aid.rawValue] = f
-                    appearHandlers[nid, default: []].append(f)
+                    lifecycleNodes.insert(nid)
                     nodes[i].modifiers.append(.task(aid))
                 case .onDisappear(let f):
                     let aid = actionID(nid, "disappear")
                     actions[aid.rawValue] = f
-                    disappearHandlers[nid, default: []].append(f)
+                    lifecycleNodes.insert(nid)
                     nodes[i].modifiers.append(.onDisappear(aid))
                 }
             }

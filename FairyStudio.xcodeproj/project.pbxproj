@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0DE9587B88A86EC7F273A204 /* TemplateLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BDC8022846202BC836DC372 /* TemplateLoader.swift */; };
 		1176307210F83D6E39A85995 /* RunCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 656AEBF440C8105B9E13940C /* RunCoordinatorTests.swift */; };
 		1EE3ECF5B1549A19740EF01A /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFCCEC416065F8B14CA01B36 /* TestSupport.swift */; };
 		276F6A8A129F930854017552 /* AIStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9EC09769427D98CB54142B2 /* AIStatusView.swift */; };
@@ -16,14 +17,20 @@
 		39E59F07FA4C5C5BBA01A465 /* RunCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCACDA912087B42BF77C82FA /* RunCoordinator.swift */; };
 		5C849B1B57B20316A67ACB0A /* EngineCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CACF8EF234D176628E9EA51 /* EngineCatalog.swift */; };
 		7EB804B52FD225A9079B7CC6 /* SwiftRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = 81708123B1FDC2D065E61CA0 /* SwiftRuntime */; };
+		8A68BDDB6D2629EA7D29646F /* ProcessMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBEAB5DC23130FA4AE0BADEC /* ProcessMemory.swift */; };
 		BC37833400F58DA1344510E6 /* BridgeTextFieldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67E39D97207242D5C61597C8 /* BridgeTextFieldTests.swift */; };
 		BDA507965C5B9F85801A4767 /* StudioModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F805AD0B53C1EB4580B45E /* StudioModel.swift */; };
+		BFFBE4BA66B5520FC775A94D /* CodeTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E066AB756A0EF8ECDBCB2850 /* CodeTextView.swift */; };
 		C352238D7F13B0BBB8D11B95 /* FairyStudioUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515E8340B54B125ECA8AA6F2 /* FairyStudioUITests.swift */; };
 		C80D79E7933D2A456DAC563E /* FairyStudioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF134EFBBEEC76AC105BBFA /* FairyStudioApp.swift */; };
 		D1008C0AC261767A2ABDD521 /* FoundationAI in Frameworks */ = {isa = PBXBuildFile; productRef = 7DDC7F65BE657E7F121A7BBE /* FoundationAI */; };
 		D27CCB93B2BB3CECA025620D /* LabPanes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F05FD20696290A2DE70078A4 /* LabPanes.swift */; };
+		DBA7DC532250719E855B091B /* Templates in Resources */ = {isa = PBXBuildFile; fileRef = F80DC619C0470AFB398EDB8F /* Templates */; };
 		DC779299672385211D043C1E /* NativeBridge in Frameworks */ = {isa = PBXBuildFile; productRef = 30092714575799E1A9065C1C /* NativeBridge */; };
 		E60D35FA75E0F8DE12DC2E40 /* AIStatusModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61AD1653C2FA181C63029D2 /* AIStatusModel.swift */; };
+		E7AEF62A8CA0DC53F4BAEDC3 /* BridgeLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8A657340E5DCEB185B7B22 /* BridgeLifecycleTests.swift */; };
+		F1FD211718289433113834EE /* OnDeviceModelCallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C40BEEAF7A2E51764899BF1 /* OnDeviceModelCallTests.swift */; };
+		F8CB64EA0F116E89019F6B9C /* SwiftRuntimeIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA5C80D4B0433277E4CE7C51 /* SwiftRuntimeIntegrationTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -47,6 +54,7 @@
 		0960F08F2DAED157F5F8A7E1 /* Tests.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Tests.xcconfig; sourceTree = "<group>"; };
 		0CACF8EF234D176628E9EA51 /* EngineCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineCatalog.swift; sourceTree = "<group>"; };
 		11B1A1E8D6508EFA21F583AA /* FairyStudioTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FairyStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2C40BEEAF7A2E51764899BF1 /* OnDeviceModelCallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnDeviceModelCallTests.swift; sourceTree = "<group>"; };
 		43969A448E9DDE4DDFFF8E66 /* FairyStudioUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FairyStudioUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		43F805AD0B53C1EB4580B45E /* StudioModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudioModel.swift; sourceTree = "<group>"; };
 		512DC45DD42A18B5E5933E5D /* RunLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLabView.swift; sourceTree = "<group>"; };
@@ -55,14 +63,20 @@
 		67E39D97207242D5C61597C8 /* BridgeTextFieldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeTextFieldTests.swift; sourceTree = "<group>"; };
 		6DA2CE4142E9EF8653A19740 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		823DB18339B48E4C6934244E /* FairyCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = FairyCore; path = Packages/FairyCore; sourceTree = SOURCE_ROOT; };
+		8BDC8022846202BC836DC372 /* TemplateLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateLoader.swift; sourceTree = "<group>"; };
 		9FF134EFBBEEC76AC105BBFA /* FairyStudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FairyStudioApp.swift; sourceTree = "<group>"; };
 		A77135EEADB3D7EFD1BEAE27 /* FairyStudio.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FairyStudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B40329B79CE2082B15EE8B1F /* FoundationModelsOnSimulatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelsOnSimulatorTests.swift; sourceTree = "<group>"; };
+		BBEAB5DC23130FA4AE0BADEC /* ProcessMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMemory.swift; sourceTree = "<group>"; };
 		BD098DE36E7C42F6E1EEEDA6 /* Tests-Verify.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Tests-Verify.xcconfig"; sourceTree = "<group>"; };
+		CA5C80D4B0433277E4CE7C51 /* SwiftRuntimeIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftRuntimeIntegrationTests.swift; sourceTree = "<group>"; };
 		D9EC09769427D98CB54142B2 /* AIStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIStatusView.swift; sourceTree = "<group>"; };
+		E066AB756A0EF8ECDBCB2850 /* CodeTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeTextView.swift; sourceTree = "<group>"; };
+		EE8A657340E5DCEB185B7B22 /* BridgeLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeLifecycleTests.swift; sourceTree = "<group>"; };
 		F05FD20696290A2DE70078A4 /* LabPanes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabPanes.swift; sourceTree = "<group>"; };
 		F4D39DC9394EDADCFC235A99 /* Verify-iOS26.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Verify-iOS26.xcconfig"; sourceTree = "<group>"; };
 		F61AD1653C2FA181C63029D2 /* AIStatusModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIStatusModel.swift; sourceTree = "<group>"; };
+		F80DC619C0470AFB398EDB8F /* Templates */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Templates; sourceTree = SOURCE_ROOT; };
 		FCACDA912087B42BF77C82FA /* RunCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunCoordinator.swift; sourceTree = "<group>"; };
 		FFCCEC416065F8B14CA01B36 /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -126,6 +140,7 @@
 				1FB7E91A4A955DEED69156C0 /* Config */,
 				2B07ED2A0BFCBAA43FA0B9AE /* Packages */,
 				508CF8A8885C93705E7D8115 /* Tests */,
+				F80DC619C0470AFB398EDB8F /* Templates */,
 				12B776260AAF51018CAF7DF5 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -153,8 +168,10 @@
 			isa = PBXGroup;
 			children = (
 				0CACF8EF234D176628E9EA51 /* EngineCatalog.swift */,
+				BBEAB5DC23130FA4AE0BADEC /* ProcessMemory.swift */,
 				FCACDA912087B42BF77C82FA /* RunCoordinator.swift */,
 				43F805AD0B53C1EB4580B45E /* StudioModel.swift */,
+				8BDC8022846202BC836DC372 /* TemplateLoader.swift */,
 			);
 			path = Runtime;
 			sourceTree = "<group>";
@@ -162,9 +179,12 @@
 		B958353532083A5099CD455F /* FairyStudioTests */ = {
 			isa = PBXGroup;
 			children = (
+				EE8A657340E5DCEB185B7B22 /* BridgeLifecycleTests.swift */,
 				67E39D97207242D5C61597C8 /* BridgeTextFieldTests.swift */,
 				B40329B79CE2082B15EE8B1F /* FoundationModelsOnSimulatorTests.swift */,
+				2C40BEEAF7A2E51764899BF1 /* OnDeviceModelCallTests.swift */,
 				656AEBF440C8105B9E13940C /* RunCoordinatorTests.swift */,
+				CA5C80D4B0433277E4CE7C51 /* SwiftRuntimeIntegrationTests.swift */,
 				FFCCEC416065F8B14CA01B36 /* TestSupport.swift */,
 			);
 			path = FairyStudioTests;
@@ -182,6 +202,7 @@
 		EA4208E418CB87B1A32C1900 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				E066AB756A0EF8ECDBCB2850 /* CodeTextView.swift */,
 				F05FD20696290A2DE70078A4 /* LabPanes.swift */,
 				512DC45DD42A18B5E5933E5D /* RunLabView.swift */,
 			);
@@ -205,12 +226,12 @@
 			buildConfigurationList = A335E689A73DDBDC63A4B7AF /* Build configuration list for PBXNativeTarget "FairyStudio" */;
 			buildPhases = (
 				31EDD0B944CAE60B71477B5F /* Sources */,
+				F22879CF87D86DEC495B8714 /* Resources */,
 				B1A569C210A1EBEC9618FB81 /* Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				19AF1F792D9EADF65936E5D4 /* PBXTargetDependency */,
 			);
 			name = FairyStudio;
 			packageProductDependencies = (
@@ -251,6 +272,7 @@
 			);
 			dependencies = (
 				827ECB72BEC375293A70FC78 /* PBXTargetDependency */,
+				340DD6A4AF9B166141E316B2 /* PBXTargetDependency */,
 			);
 			name = FairyStudioTests;
 			packageProductDependencies = (
@@ -304,6 +326,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		F22879CF87D86DEC495B8714 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DBA7DC532250719E855B091B /* Templates in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		184CD126074BAFF77660B66F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -319,12 +352,15 @@
 			files = (
 				E60D35FA75E0F8DE12DC2E40 /* AIStatusModel.swift in Sources */,
 				276F6A8A129F930854017552 /* AIStatusView.swift in Sources */,
+				BFFBE4BA66B5520FC775A94D /* CodeTextView.swift in Sources */,
 				5C849B1B57B20316A67ACB0A /* EngineCatalog.swift in Sources */,
 				C80D79E7933D2A456DAC563E /* FairyStudioApp.swift in Sources */,
 				D27CCB93B2BB3CECA025620D /* LabPanes.swift in Sources */,
+				8A68BDDB6D2629EA7D29646F /* ProcessMemory.swift in Sources */,
 				39E59F07FA4C5C5BBA01A465 /* RunCoordinator.swift in Sources */,
 				3882C012E31CD77F38109C0B /* RunLabView.swift in Sources */,
 				BDA507965C5B9F85801A4767 /* StudioModel.swift in Sources */,
+				0DE9587B88A86EC7F273A204 /* TemplateLoader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -332,9 +368,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E7AEF62A8CA0DC53F4BAEDC3 /* BridgeLifecycleTests.swift in Sources */,
 				BC37833400F58DA1344510E6 /* BridgeTextFieldTests.swift in Sources */,
 				38CAB9327BB1E4232AF1586E /* FoundationModelsOnSimulatorTests.swift in Sources */,
+				F1FD211718289433113834EE /* OnDeviceModelCallTests.swift in Sources */,
 				1176307210F83D6E39A85995 /* RunCoordinatorTests.swift in Sources */,
+				F8CB64EA0F116E89019F6B9C /* SwiftRuntimeIntegrationTests.swift in Sources */,
 				1EE3ECF5B1549A19740EF01A /* TestSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -342,14 +381,14 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		19AF1F792D9EADF65936E5D4 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			productRef = "TEMP_16C49399-6FB9-4E86-80EE-48F5850C18BF" /* DevFixtures */;
-		};
 		285DD63C40F895738D035622 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 111DC68F0B6894365D42ADCD /* FairyStudio */;
 			targetProxy = A6BA9BCFAD4031B52371992F /* PBXContainerItemProxy */;
+		};
+		340DD6A4AF9B166141E316B2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = "TEMP_F7B5B7B2-0248-4C27-BCF8-52A46B6A3E27" /* DevFixtures */;
 		};
 		827ECB72BEC375293A70FC78 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -368,6 +407,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)/DevFixtures.o",
 				);
 				SDKROOT = iphoneos;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/$(FAIRY_PRODUCT_NAME).app/$(FAIRY_PRODUCT_NAME)";
@@ -647,6 +690,10 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)/DevFixtures.o",
+				);
 				SDKROOT = iphoneos;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/$(FAIRY_PRODUCT_NAME).app/$(FAIRY_PRODUCT_NAME)";
 			};
@@ -662,10 +709,6 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
-				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"$(BUILT_PRODUCTS_DIR)/DevFixtures.o",
 				);
 				SDKROOT = iphoneos;
 			};
@@ -739,6 +782,10 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)/DevFixtures.o",
+				);
 				SDKROOT = iphoneos;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/$(FAIRY_PRODUCT_NAME).app/$(FAIRY_PRODUCT_NAME)";
 			};
@@ -768,6 +815,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)/DevFixtures.o",
 				);
 				SDKROOT = iphoneos;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/$(FAIRY_PRODUCT_NAME).app/$(FAIRY_PRODUCT_NAME)";
@@ -862,7 +913,7 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = RuntimeContracts;
 		};
-		"TEMP_16C49399-6FB9-4E86-80EE-48F5850C18BF" /* DevFixtures */ = {
+		"TEMP_F7B5B7B2-0248-4C27-BCF8-52A46B6A3E27" /* DevFixtures */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DevFixtures;
 		};

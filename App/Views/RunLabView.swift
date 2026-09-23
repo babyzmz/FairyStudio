@@ -18,6 +18,8 @@ struct RunLabView: View {
     var body: some View {
         VStack(spacing: 0) {
             RunToolbar(studio: studio) {
+                // 运行时收起键盘：让出预览区与诊断抽屉（iPad 上编辑区与预览并排，键盘会遮住抽屉）。
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 studio.run()
                 compactPane = .preview
             }
@@ -46,7 +48,7 @@ struct RunLabView: View {
                 }
             }
             Divider()
-            ConsoleDrawer(coordinator: studio.coordinator, isExpanded: $isConsoleExpanded)
+            ConsoleDrawer(coordinator: studio.coordinator, budgetDescription: studio.budgetDescription, isExpanded: $isConsoleExpanded)
         }
         .background(Color(uiColor: .systemBackground))
     }
@@ -61,7 +63,7 @@ struct RunToolbar: View {
         let coordinator = studio.coordinator
         HStack(spacing: 8) {
             RunStateBadge(state: coordinator.state)
-            EngineMenu(studio: studio)
+            EngineLabel(studio: studio)
             Spacer(minLength: 4)
             Button(action: onRun) {
                 Label(coordinator.isActive ? "重新运行" : "运行", systemImage: "play.fill")
@@ -122,26 +124,17 @@ struct RunStateBadge: View {
     }
 }
 
-struct EngineMenu: View {
+/// 当前引擎（M0-C 起只有 SwiftRuntime 解释器，不再提供夹具引擎选择）。
+struct EngineLabel: View {
     let studio: StudioModel
 
     var body: some View {
-        Menu {
-            ForEach(EngineChoice.allChoices) { choice in
-                Button {
-                    studio.selectEngine(choice)
-                } label: {
-                    if choice == studio.engineChoice {
-                        Label(choice.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(choice.displayName)
-                    }
-                }
-            }
-        } label: {
-            Label(studio.engineChoice.displayName, systemImage: "cpu")
-                .lineLimit(1)
-        }
-        .accessibilityIdentifier("engine.menu")
+        Label(studio.engineChoice.displayName, systemImage: "cpu")
+            .font(.caption)
+            .lineLimit(1)
+            .foregroundStyle(.secondary)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("引擎：\(studio.engineChoice.displayName)"))
+            .accessibilityIdentifier("engine.label")
     }
 }

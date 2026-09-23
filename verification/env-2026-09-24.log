@@ -1,0 +1,130 @@
+# Fairy Studio 环境核验 2026-09-24 01:15:15 +1000
+
+## macOS
+$ sw_vers
+ProductName:		macOS
+ProductVersion:		15.7.4
+BuildVersion:		24G517
+
+## Xcode / Swift
+$ xcode-select -p
+/Applications/Xcode.app/Contents/Developer
+$ xcodebuild -version
+Xcode 26.3
+Build version 17C529
+$ swift --version
+swift-driver version: 1.127.15 Apple Swift version 6.2.4 (swiftlang-6.2.4.1.4 clang-1700.6.4.2)
+Target: arm64-apple-macosx15.0
+$ xcodebuild -showsdks
+DriverKit SDKs:
+	DriverKit 25.2                	-sdk driverkit25.2
+
+iOS SDKs:
+	iOS 26.2                      	-sdk iphoneos26.2
+
+iOS Simulator SDKs:
+	Simulator - iOS 26.2          	-sdk iphonesimulator26.2
+
+macOS SDKs:
+	macOS 26.2                    	-sdk macosx26.2
+	macOS 26.2                    	-sdk macosx26.2
+
+tvOS SDKs:
+	tvOS 26.2                     	-sdk appletvos26.2
+
+tvOS Simulator SDKs:
+	Simulator - tvOS 26.2         	-sdk appletvsimulator26.2
+
+visionOS SDKs:
+	visionOS 26.2                 	-sdk xros26.2
+
+visionOS Simulator SDKs:
+	Simulator - visionOS 26.2     	-sdk xrsimulator26.2
+
+watchOS SDKs:
+	watchOS 26.2                  	-sdk watchos26.2
+
+watchOS Simulator SDKs:
+	Simulator - watchOS 26.2      	-sdk watchsimulator26.2
+
+
+## 模拟器运行时与设备
+$ xcrun simctl list runtimes
+== Runtimes ==
+iOS 26.3 (26.3.1 - 23D8133) - com.apple.CoreSimulator.SimRuntime.iOS-26-3
+$ xcrun simctl list devices available
+== Devices ==
+-- iOS 26.3 --
+    iPhone 17 Pro (4643FD35-F0A3-48BC-8F65-7CF8AB4E406C) (Booted) 
+    iPhone 17 Pro Max (9799674B-8666-4CF3-8C53-E69B68E99E0B) (Shutdown) 
+    iPhone Air (654A0539-30DA-430F-B392-BB25FC9E0F5A) (Shutdown) 
+    iPhone 17 (B8F5929D-7A2E-4A9E-85C5-B7F08137E765) (Shutdown) 
+    iPhone 16e (69A61F8E-090C-43F8-887B-9AC4816361A0) (Shutdown) 
+    iPad Pro 13-inch (M5) (893DE4AB-7AC8-4074-B8D3-C5C807C06D94) (Shutdown) 
+    iPad Pro 11-inch (M5) (11FB3503-DE47-4E20-AE2B-96234FD68A62) (Shutdown) 
+    iPad mini (A17 Pro) (8E7C9C39-CA31-4BA5-B9EE-F1240BC7A6E0) (Shutdown) 
+    iPad (A16) (34B9DCB5-3C0F-4D8E-94E6-C7A787DC1197) (Shutdown) 
+    iPad Air 13-inch (M3) (508CF834-85F7-4405-8B6B-3B0BB84C88D6) (Shutdown) 
+    iPad Air 11-inch (M3) (FE0758C3-15DD-4B0C-AF61-B423C4805B2F) (Shutdown) 
+
+## 已配对实机（devicectl；只输出型号、系统与状态，不输出设备名）
+iPad Pro 11-inch (M5) (iPad17,1) os=27.0 build=24A5408d pairing=paired tunnel=unavailable ddiServicesAvailable=False developerMode=enabled
+iPad Pro (12.9-inch) (6th generation) (iPad14,5) os=18.7.8 build=22H352 pairing=paired tunnel=disconnected ddiServicesAvailable=False developerMode=enabled
+iPhone 16 Pro Max (iPhone17,2) os=27.0 build=24A437 pairing=paired tunnel=connected ddiServicesAvailable=True developerMode=enabled
+
+## 签名身份（只统计数量与 Team ID）
+有效身份数：2
+Team 66F6479Y4Q
+Team 726834KAPQ
+provisioning profile 数（~/Library/MobileDevice）：0
+provisioning profile 数（Xcode UserData）：4
+  profile Team 8M39RSH36Q
+  profile Team 8M39RSH36Q
+  profile Team 978L5PZ2LT
+  profile Team 8M39RSH36Q
+Xcode 账户可用的开发团队：
+  Team 978L5PZ2LT
+    类型 Personal Team
+
+## XcodeGen
+$ which xcodegen
+/opt/homebrew/bin/xcodegen
+$ xcodegen --version
+Version: 2.46.0
+
+## FoundationModels（iOS Simulator SDK swiftinterface）
+swiftinterface: /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk/System/Library/Frameworks/FoundationModels.framework/Modules/FoundationModels.swiftmodule/arm64-apple-ios-simulator.swiftinterface
+final public class SystemLanguageModel                  1
+final public class LanguageModelSession                 1
+public enum UnavailableReason                           1
+case deviceNotEligible                                  1
+case appleIntelligenceNotEnabled                        1
+case modelNotReady                                      1
+public enum GenerationError                             1
+case exceededContextWindowSize                          1
+case assetsUnavailable                                  1
+case guardrailViolation                                 1
+case unsupportedGuide                                   1
+case unsupportedLanguageOrLocale                        1
+case decodingFailure                                    1
+case rateLimited                                        1
+case concurrentRequests                                 1
+case refusal                                            1
+final public var isResponding                           1
+func streamResponse(to prompt: Swift.String             4
+func supportsLocale                                     1
+maximumResponseTokens                                   2
+上下文容量 / token 计数 API（contextSize|tokenCount|contextWindow 声明）：0
+
+## Private Cloud Compute 符号（iOS Simulator SDK 全部 swiftinterface）
+含 PrivateCloudCompute 的 swiftinterface 文件数：0
+
+## Swift 包依赖（Package.resolved）
+$ grep -A6 "identity" : "swift-syntax" Packages/FairyCore/Package.resolved
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-syntax.git",
+      "state" : {
+        "revision" : "79e4b74a295b6eb74a8b585e3a39d29e70c1dbd1",
+        "version" : "603.0.2"
+      }

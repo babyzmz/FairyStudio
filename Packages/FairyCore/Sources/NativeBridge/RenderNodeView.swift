@@ -9,6 +9,9 @@ struct RenderNodeView: View {
     var body: some View {
         if node.modifiers.isEmpty {
             NodeContent(node: node, send: send)
+        } else if LifecycleInputs.hasLifecycle(node) {
+            ModifierChain.apply(node.modifiers, to: AnyView(NodeContent(node: node, send: send)), send: send)
+                .modifier(LifecycleHooks(node: node, send: send))
         } else {
             ModifierChain.apply(node.modifiers, to: AnyView(NodeContent(node: node, send: send)), send: send)
         }

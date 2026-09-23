@@ -3,10 +3,9 @@ import Foundation
 import RuntimeContracts
 @testable import Fairy_Studio
 
-#if FAIRY_VERIFY_BUILD && DEBUG
 import DevFixtures
 
-/// RunCoordinator 行为（使用夹具引擎；夹具只存在于验证构建的测试中）。
+/// RunCoordinator 行为（使用夹具引擎；M0-C 起夹具只链接进本测试目标，App 任何配置都不含）。
 /// 串行执行：泄漏检测依赖全局存活实例计数。
 @MainActor
 @Suite("RunCoordinator", .serialized)
@@ -166,31 +165,5 @@ struct RunCoordinatorTests {
         #expect(lastCount == "Count: 1")
         #expect(consoleLines.contains { $0.contains("不属于本实例") })
         #expect(consoleLines.contains { $0.contains("乱序") })
-    }
-}
-#endif
-
-/// 正式路径：SwiftRuntime 尚未接入时如实失败，不伪造运行。
-@MainActor
-@Suite("正式引擎路径")
-struct PendingEngineTests {
-    @Test("SwiftRuntime 未接入：校验失败、状态 failed、无 RenderTree")
-    func pendingEngineFailsHonestly() async {
-        let coordinator = RunCoordinator(engine: PendingSwiftRuntimeEngine())
-        await coordinator.run(sampleProgram).value
-        #expect(coordinator.state == .failed)
-        #expect(coordinator.tree == nil)
-        #expect(coordinator.diagnostics.contains { $0.message.contains("尚未接入") })
-    }
-
-    @Test("启动参数只能选到当前构建存在的引擎")
-    func launchArgumentSelection() {
-        #expect(EngineChoice.fromLaunchArguments(["app", "-fairy.engine", "swiftRuntime"]) == .swiftRuntime)
-        #expect(EngineChoice.fromLaunchArguments(["app", "-fairy.engine", "nonexistent"]) == nil)
-        #if FAIRY_VERIFY_BUILD && DEBUG
-        #expect(EngineChoice.fromLaunchArguments(["app", "-fairy.engine", "fixture.counter"])?.isFixture == true)
-        #else
-        #expect(EngineChoice.allChoices.allSatisfy { !$0.isFixture })
-        #endif
     }
 }
