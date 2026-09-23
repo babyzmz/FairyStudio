@@ -279,7 +279,7 @@ final class RunCoordinator {
         switch reason {
         case .completed, .stoppedByUser: .stopped
         case .budgetExceeded: .interrupted
-        case .trap, .internalError: .failed
+        case .trap, .internalError, .validationFailed: .failed
         }
     }
 
@@ -290,6 +290,7 @@ final class RunCoordinator {
         case let .budgetExceeded(detail): "超出预算（\(detail)）"
         case let .trap(detail): "运行时错误（\(detail)）"
         case let .internalError(detail): "内部错误（\(detail)）"
+        case .validationFailed: "校验未通过"
         }
     }
 }

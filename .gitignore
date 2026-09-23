@@ -8,3 +8,4 @@ DerivedData/
 Config/Signing.local.xcconfig
 build/
 verification/logs/*.log
+.claude/

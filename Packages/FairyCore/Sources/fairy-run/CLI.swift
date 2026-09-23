@@ -212,7 +212,7 @@ enum CLI {
             case .finished(let reason):
                 switch reason {
                 case .completed, .stoppedByUser: break
-                case .trap, .internalError: exit = 1
+                case .trap, .internalError, .validationFailed: exit = 1
                 case .budgetExceeded: exit = 2
                 }
             case .capabilityRequest:

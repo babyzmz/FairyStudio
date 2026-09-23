@@ -41,7 +41,10 @@ public struct ValidationResult: Sendable, Hashable, Codable {
     }
 }
 
-/// 一个运行实例。stop() 是协作式取消：返回时所有计时器、任务、桥接句柄必须已失效。
+/// 一个运行实例。stop() 是协作式取消：返回时所有计时器、任务、桥接句柄必须已失效，且 events 流已结束（finish）。
+/// 终止约定（CR-1 / B-7）：所有运行都以 .finished(reason) 作为统一终止事件，并且在其之前发出对应的 stateChanged
+/// （completed / stoppedByUser → .stopped；budgetExceeded → .interrupted；trap / internalError / validationFailed → .failed）。
+/// 宿主仍以“事件流结束”作为兜底终止判定。
 public protocol RunHandle: Sendable {
     var runID: RunID { get }
     var events: AsyncStream<RuntimeEventEnvelope> { get }

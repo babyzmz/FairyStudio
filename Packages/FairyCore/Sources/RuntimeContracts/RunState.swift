@@ -8,6 +8,7 @@ public enum RunState: String, Sendable, Codable {
 
 public enum ExitReason: Sendable, Codable, Hashable {
     case completed                 // 脚本自然结束
+    case validationFailed          // 校验/编译阶段失败：先发 diagnostics 与 stateChanged(.failed)，再发本事件
     case stoppedByUser
     case budgetExceeded(String)
     case trap(String)
@@ -15,6 +16,9 @@ public enum ExitReason: Sendable, Codable, Hashable {
 }
 
 /// 执行预算：VM 在指令循环、调用、循环回边和大集合操作处检查。CPU 预算与异步等待预算分开。
+/// 计量范围（契约裁决 CR-3）：`maxSteps` 按“执行单元”计——脚本入口为整个脚本；UI 入口为每次初次渲染、
+/// 每次输入处理（含随后的重新渲染）。`sliceWallClock` 在脚本入口是让出点（暂停后从同一指令恢复），
+/// 在 UI 事件处理中是硬上限（超过即 budgetExceeded）。
 public struct ExecutionBudget: Sendable, Codable, Hashable {
     public var maxSteps: Int
     public var maxCallDepth: Int

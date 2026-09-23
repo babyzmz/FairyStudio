@@ -22,6 +22,7 @@ public struct NodeID: Hashable, Sendable, Codable, CustomStringConvertible {
 }
 
 /// 宿主触发运行时动作（Button.action 等）的句柄；只在其所属 RunID 内有效。
+/// 对宿主而言 NodeID / ActionID / BindingID 都是不透明字符串，同一 RunID 内跨渲染稳定；宿主不得解析其内部格式。
 public struct ActionID: Hashable, Sendable, Codable {
     public let rawValue: String
     public init(_ rawValue: String) { self.rawValue = rawValue }
