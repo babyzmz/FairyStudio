@@ -1,0 +1,36 @@
+// swift-tools-version: 6.2
+import PackageDescription
+
+// 平台声明是构建下限，不是产品部署目标。产品部署目标 iOS 27.0 在 Config/Base.xcconfig 中设定；
+// 当前环境（iOS 26.2 SDK）只能做验证构建，见 docs/ENVIRONMENT.md。macOS 仅用于跨平台单测与差分测试 CLI。
+let package = Package(
+    name: "FairyCore",
+    platforms: [.iOS("26.0"), .macOS("15.0")],
+    products: [
+        .library(name: "RuntimeContracts", targets: ["RuntimeContracts"]),
+        .library(name: "SwiftRuntime", targets: ["SwiftRuntime"]),
+        .library(name: "NativeBridge", targets: ["NativeBridge"]),
+        .library(name: "FoundationAI", targets: ["FoundationAI"]),
+        .executable(name: "fairy-run", targets: ["fairy-run"]),
+    ],
+    dependencies: [
+        // 锁定版本以 `swift package resolve` 实测为准，记录在 docs/DEPENDENCIES.md。
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.2"),
+    ],
+    targets: [
+        .target(name: "RuntimeContracts"),
+        .target(name: "SwiftRuntime", dependencies: [
+            "RuntimeContracts",
+            .product(name: "SwiftSyntax", package: "swift-syntax"),
+            .product(name: "SwiftParser", package: "swift-syntax"),
+        ]),
+        .target(name: "NativeBridge", dependencies: ["RuntimeContracts"]),
+        .target(name: "FoundationAI", dependencies: ["RuntimeContracts"]),
+        .executableTarget(name: "fairy-run", dependencies: ["SwiftRuntime", "RuntimeContracts"]),
+        .testTarget(name: "RuntimeContractsTests", dependencies: ["RuntimeContracts"]),
+        .testTarget(name: "SwiftRuntimeTests", dependencies: ["SwiftRuntime", "RuntimeContracts"], resources: [.copy("Fixtures")]),
+        .testTarget(name: "NativeBridgeTests", dependencies: ["NativeBridge", "RuntimeContracts"]),
+        .testTarget(name: "FoundationAITests", dependencies: ["FoundationAI"]),
+    ],
+    swiftLanguageModes: [.v6]
+)

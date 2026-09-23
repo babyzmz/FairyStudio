@@ -1,0 +1,4 @@
+// 产品名称、Bundle ID 前缀与品牌资源集中配置。改名只改这里。
+FAIRY_PRODUCT_NAME = Fairy Studio
+FAIRY_BUNDLE_PREFIX = com.fairystudio
+FAIRY_APP_BUNDLE_ID = $(FAIRY_BUNDLE_PREFIX).app

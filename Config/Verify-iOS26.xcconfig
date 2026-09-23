@@ -1,0 +1,6 @@
+#include "Base.xcconfig"
+
+// 仅用于当前环境（Xcode 26.3 / iOS 26.2 SDK / iOS 26.3 模拟器）的验证构建。
+// 用此配置得到的结果只能记录为“已实现待 iOS 27 环境复验”，见 docs/ENVIRONMENT.md。
+IPHONEOS_DEPLOYMENT_TARGET = 26.2
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) FAIRY_VERIFY_BUILD
