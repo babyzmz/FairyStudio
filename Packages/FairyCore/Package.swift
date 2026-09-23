@@ -25,6 +25,10 @@ let package = Package(
             "RuntimeContracts",
             .product(name: "SwiftSyntax", package: "swift-syntax"),
             .product(name: "SwiftParser", package: "swift-syntax"),
+            // SwiftOperators：把 SequenceExpr 按标准运算符优先级折叠；SwiftParserDiagnostics：把语法错误转为诊断。
+            .product(name: "SwiftOperators", package: "swift-syntax"),
+            .product(name: "SwiftParserDiagnostics", package: "swift-syntax"),
+            .product(name: "SwiftDiagnostics", package: "swift-syntax"),
         ]),
         .target(name: "NativeBridge", dependencies: ["RuntimeContracts"]),
         .target(name: "FoundationAI", dependencies: ["RuntimeContracts"]),

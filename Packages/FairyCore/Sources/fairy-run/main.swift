@@ -1,2 +1,5 @@
-// 占位，由 M0 子代理替换为真实实现
-print("fairy-run placeholder")
+import Foundation
+
+// fairy-run 入口：见 CLI.swift。
+let code = await CLI.main(Array(CommandLine.arguments.dropFirst()))
+exit(code)
