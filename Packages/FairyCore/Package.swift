@@ -11,6 +11,8 @@ let package = Package(
         .library(name: "SwiftRuntime", targets: ["SwiftRuntime"]),
         .library(name: "NativeBridge", targets: ["NativeBridge"]),
         .library(name: "FoundationAI", targets: ["FoundationAI"]),
+        // M0-B：夹具引擎，仅供测试目标与 Verify-Debug 构建链接，Release 绝不链接（见 docs/progress/M0-B.md）。
+        .library(name: "DevFixtures", targets: ["DevFixtures"]),
         .executable(name: "fairy-run", targets: ["fairy-run"]),
     ],
     dependencies: [
@@ -26,6 +28,7 @@ let package = Package(
         ]),
         .target(name: "NativeBridge", dependencies: ["RuntimeContracts"]),
         .target(name: "FoundationAI", dependencies: ["RuntimeContracts"]),
+        .target(name: "DevFixtures", dependencies: ["RuntimeContracts"]),
         .executableTarget(name: "fairy-run", dependencies: ["SwiftRuntime", "RuntimeContracts"]),
         .testTarget(name: "RuntimeContractsTests", dependencies: ["RuntimeContracts"]),
         .testTarget(name: "SwiftRuntimeTests", dependencies: ["SwiftRuntime", "RuntimeContracts"], resources: [.copy("Fixtures")]),

@@ -1,0 +1,7 @@
+// 测试目标（产品配置）：继承 Base 的部署目标与 Swift 设置，只改产品名与 Bundle ID（前缀取自 Brand.xcconfig）。
+#include "../../Config/Base.xcconfig"
+
+PRODUCT_NAME = $(TARGET_NAME)
+PRODUCT_BUNDLE_IDENTIFIER = $(FAIRY_BUNDLE_PREFIX).$(TARGET_NAME)
+// 测试包无自定义 Info.plist 内容，由 Xcode 生成。
+GENERATE_INFOPLIST_FILE = YES

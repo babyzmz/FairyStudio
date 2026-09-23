@@ -1,0 +1,146 @@
+# Fairy Studio 工程定义（XcodeGen）。生成物 FairyStudio.xcodeproj 一并提交；修改本文件后运行 `xcodegen generate`。
+# 产品名、Bundle ID 只来自 Config/Brand.xcconfig；部署目标只来自 Config/Base.xcconfig（产品 27.0）
+# 与 Config/Verify-iOS26.xcconfig（当前环境验证构建 26.2）。
+name: FairyStudio
+
+options:
+  createIntermediateGroups: true
+  groupSortPosition: top
+  developmentLanguage: zh-Hans
+  # 不写 deploymentTarget：部署目标由 xcconfig 决定，避免出现第二个真相来源。
+
+configs:
+  Debug: debug
+  Release: release
+  Verify-Debug: debug
+  Verify-Release: release
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+
+packages:
+  FairyCore:
+    path: Packages/FairyCore
+
+targets:
+  FairyStudio:
+    type: application
+    platform: iOS
+    configFiles:
+      Debug: Config/Base.xcconfig
+      Release: Config/Base.xcconfig
+      Verify-Debug: Config/Verify-iOS26.xcconfig
+      Verify-Release: Config/Verify-iOS26.xcconfig
+    sources:
+      - path: App
+        excludes:
+          - "Info.plist"
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: $(PRODUCT_NAME)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    dependencies:
+      - package: FairyCore
+        products:
+          - RuntimeContracts
+          - NativeBridge
+          - FoundationAI
+          - SwiftRuntime
+      # DevFixtures：只建立构建依赖、不进入 Link Binary 阶段；仅 Verify-Debug 通过 OTHER_LDFLAGS 链接（见下）。
+      - package: FairyCore
+        product: DevFixtures
+        link: false
+    settings:
+      configs:
+        # 只有 Verify-Debug 链接夹具引擎；Debug / Release / Verify-Release 的链接产物不含 DevFixtures
+        # （scripts/check-release-link.sh 校验）。App 代码中对应的 import 也只在 FAIRY_VERIFY_BUILD && DEBUG 下编译。
+        Verify-Debug:
+          OTHER_LDFLAGS: ["$(inherited)", "$(BUILT_PRODUCTS_DIR)/DevFixtures.o"]
+
+  FairyStudioTests:
+    type: bundle.unit-test
+    platform: iOS
+    configFiles:
+      Debug: Tests/Config/Tests.xcconfig
+      Release: Tests/Config/Tests.xcconfig
+      Verify-Debug: Tests/Config/Tests-Verify.xcconfig
+      Verify-Release: Tests/Config/Tests-Verify.xcconfig
+    sources:
+      - path: Tests/FairyStudioTests
+    dependencies:
+      - target: FairyStudio
+    # 测试包由 App 宿主加载（TEST_HOST / BUNDLE_LOADER），包模块的符号来自宿主，不重复链接。
+    # 产品名来自 Brand.xcconfig（含空格），因此显式给出宿主路径。
+    settings:
+      base:
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/$(FAIRY_PRODUCT_NAME).app/$(FAIRY_PRODUCT_NAME)"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+  FairyStudioUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    configFiles:
+      Debug: Tests/Config/Tests.xcconfig
+      Release: Tests/Config/Tests.xcconfig
+      Verify-Debug: Tests/Config/Tests-Verify.xcconfig
+      Verify-Release: Tests/Config/Tests-Verify.xcconfig
+    sources:
+      - path: Tests/FairyStudioUITests
+    dependencies:
+      - target: FairyStudio
+
+schemes:
+  # 产品配置：部署目标 iOS 27.0（Config/Base.xcconfig）。当前环境（iOS 26.2 SDK / 26.3 模拟器）无可运行目的地。
+  FairyStudio:
+    build:
+      targets:
+        FairyStudio: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - FairyStudioTests
+        - FairyStudioUITests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+  # 验证构建：Config/Verify-iOS26.xcconfig（部署目标 26.2 + FAIRY_VERIFY_BUILD），可在 iOS 26.3 模拟器安装运行。
+  FairyStudio-Verify:
+    build:
+      targets:
+        FairyStudio: all
+    run:
+      config: Verify-Debug
+    test:
+      config: Verify-Debug
+      targets:
+        - FairyStudioTests
+        - FairyStudioUITests
+    profile:
+      config: Verify-Release
+    analyze:
+      config: Verify-Debug
+    archive:
+      config: Verify-Release
