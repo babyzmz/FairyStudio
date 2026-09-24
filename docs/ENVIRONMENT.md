@@ -47,3 +47,9 @@
 | Xcode 自动签名 profile 位置 | 只统计 `~/Library/MobileDevice/Provisioning Profiles`（0 个） | Xcode 26 放在 `~/Library/Developer/Xcode/UserData/Provisioning Profiles`；`verify-env.sh` 现同时统计两处并列出 profile 与账户的 Team ID（不输出账户名） |
 
 结论：Xcode 26.3 与 iOS 27.0 实机之间 devicectl 报告 DDI 服务可用（此前的“无 iOS 27 DDI”判断不再成立）；能否实际安装、运行 XCTest **尚未验证**——当前在更早的签名步骤就失败了，阻塞点是**签名账户**。
+
+## 实机签名实测（2026-09-24，主代理）
+- 用户在 Xcode 登录 zmz1998@gmail.com 后，该账号所属团队为 **978L5PZ2LT（Richie Zhang）**；钥匙串证书名中的 66F6479Y4Q 不是可用团队。`Config/Signing.local.xcconfig` 已改为 978L5PZ2LT（gitignored）。
+- xcodebuild 目的地需用硬件 ID `00008140-000E2C523A52801C`；devicectl 的 UUID 不被接受。
+- 单测可在 iOS 27.0 实机运行（Xcode 26.3 DDI 可用）；XCUITest 两次报 `Timed out while enabling automation mode`，待排查（UI Automation 开关 / Xcode 27）。
+- 实机 Foundation Models：`availability=available`，一次真实设备端调用成功（3.19 s）。

@@ -35,7 +35,7 @@
 | M0-14 | 进入运行耗时（请求运行 → 首个 RenderTree） | 模拟器 | 指标面板 `metrics.startLatency` | 记录：iPhone 135.3 ms（校验 31.5 ms）、iPad 40.9 ms（校验 27.6 ms），Counter 模板 2 文件 | 2026-09-24 |
 | M0-15 | 本地模型可用性检测（原样记录系统返回值） | 模拟器 | `FoundationModelsOnSimulatorTests.recordRealAvailability`；`testAIStatusReportsRealAvailability` | 模拟器：`modelNotReady`（宿主 macOS 15.7.4） | 2026-09-24 |
 | M0-15d | 同上 | iPhone 实机 | `OnDeviceModelCallTests` | 本包内受阻：签名账户；由主代理执行 | 2026-09-24 |
-| M0-16 | 本地模型一次真实调用（实际后端、耗时、响应） | iPhone 实机 | `OnDeviceModelCallTests.realCallOrRecordedReason` | 本包内受阻：签名账户；由主代理执行（模拟器：modelNotReady，按设计未调用） | 2026-09-24 |
+| M0-16 | 本地模型一次真实调用（实际后端、耗时、响应） | iPhone 实机 | `OnDeviceModelCallTests.realCallOrRecordedReason` | **通过（实机）**：availability=available；backend=onDevice，3.19 s，回复「我是一个大型语言模型。」（verification/M0.md 主代理实机记录）；原记录：本包内受阻：签名账户；由主代理执行（模拟器：modelNotReady，按设计未调用） | 2026-09-24 |
 | M0-17 | PCC 后端 | 全部 | — | 受阻：SDK 缺失（`pccSDKMissing`）+ 资格与 entitlement 未核对 | 2026-09-24 |
 | M0-18 | 产品配置（部署目标 iOS 27.0）运行与测试 | 需 iOS 27 SDK | `xcodebuild -scheme FairyStudio test` | 受阻：无 iOS 27 SDK / 模拟器（仅 generic 目的地可编译） | 2026-09-24 |
 | M0-19 | iPad 实机 | iPad 实机 | — | 受阻：iPad Pro 11 (M5) tunnel 不可用；iPad Pro 12.9 为 iOS 18.7.8 | 2026-09-24 |
