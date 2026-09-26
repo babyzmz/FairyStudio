@@ -20,3 +20,8 @@
 
 ## 下一步
 - M1：ProjectCore（.mojoproject、ZIP 导入校验、快照 / 事务）+ TextKit 2 编辑器（替换 M0 的 CodeTextView）+ iPhone / iPad 工作区布局。
+
+## 暂停记录（2026-09-27，用户周额度用尽）
+- W1/W2/W3 三个子代理在启动后约 20–30 分钟被停止。W2、W3 尚无文件改动；W1 的少量半成品（ProjectCore/Model 目录、Package.swift 依赖）已提交在分支 `worktree-agent-a2c107043d7f2f31e`（可合并或丢弃，量很小）。
+- 主分支状态：M0 全部完成并验证；ProjectContracts 已定义并测试；Xcode 27 环境已核验；产品配置可在实机构建。
+- **续跑步骤**：1) `git worktree prune`；2) 按 docs/PLAN_W.md 的 W1 / W2 / W3 节重新派发三个 Opus 子代理（提示词要点：环境 = Xcode 27 / Swift 6.4 / iOS 27 SDK / 模拟器 26.3；`scripts/spm.sh test`；实机 `id=00008140-000E2C523A52801C`，实机不跑 XCUITest；W1↔W2 接口 `AssistantPanelHost(project:coordinator:initialPrompt:)` 与 RunCoordinator 公开 API）；3) 可选：下载 iOS 27 模拟器运行时。
