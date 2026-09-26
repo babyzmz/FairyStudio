@@ -53,3 +53,9 @@
 - xcodebuild 目的地需用硬件 ID `00008140-000E2C523A52801C`；devicectl 的 UUID 不被接受。
 - 单测可在 iOS 27.0 实机运行（Xcode 26.3 DDI 可用）；XCUITest 两次报 `Timed out while enabling automation mode`，待排查（UI Automation 开关 / Xcode 27）。
 - 实机 Foundation Models：`availability=available`，一次真实设备端调用成功（3.19 s）。
+
+## macOS 27 升级后的变化（2026-09-27）
+- 宿主 macOS 27.0；Xcode 仍为 26.3（iOS 26.2 SDK），**Xcode 27 尚未安装**（softwareupdate 仅列出 Command Line Tools for Xcode 27.0）。PCC 与 iOS 27 产品构建仍受阻。
+- 升级后需重新接受 Xcode 许可（`sudo xcodebuild -license accept`），否则 git/swift/xcodebuild 全部拒绝运行。
+- ~/Desktop 下的文件带 `com.apple.provenance` 扩展属性，SwiftPM 在仓库内 `.build` 生成的测试包 codesign 失败（detritus not allowed）。统一用 `scripts/spm.sh test` 把构建目录放到 `~/Library/Caches/FairyStudio/`；xcodebuild 已用 `~/Library/Developer/Xcode/DerivedData/`。
+- Mac 本机 `SystemLanguageModel.default.availability` = `unavailable(modelNotReady)`（Apple Intelligence 未就绪）；macOS 单测仍不能真实调用模型。
