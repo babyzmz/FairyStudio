@@ -59,3 +59,15 @@
 - 升级后需重新接受 Xcode 许可（`sudo xcodebuild -license accept`），否则 git/swift/xcodebuild 全部拒绝运行。
 - ~/Desktop 下的文件带 `com.apple.provenance` 扩展属性，SwiftPM 在仓库内 `.build` 生成的测试包 codesign 失败（detritus not allowed）。统一用 `scripts/spm.sh test` 把构建目录放到 `~/Library/Caches/FairyStudio/`；xcodebuild 已用 `~/Library/Developer/Xcode/DerivedData/`。
 - Mac 本机 `SystemLanguageModel.default.availability` = `unavailable(modelNotReady)`（Apple Intelligence 未就绪）；macOS 单测仍不能真实调用模型。
+
+## Xcode 27 安装后（2026-09-27）
+| 项目 | 实测值 |
+|---|---|
+| Xcode | 27.0 (27A266a)，/Applications/Xcode.app |
+| Swift | 6.4 (swiftlang-6.4.0.34.1) |
+| iOS SDK | iOS 27.0 / Simulator iOS 27.0 |
+| 模拟器运行时 | 仍只有 iOS 26.3（iOS 27 运行时待下载：Xcode → Settings → Components 或 `xcodebuild -downloadPlatform iOS`） |
+| FoundationModels (iOS 27 SDK) | 有 `PrivateCloudComputeLanguageModel`、`protocol LanguageModel`、`contextSize`、`tokenCount(for:)`、`GenerationOptions.maximumResponseTokens/toolCallingMode`、`LanguageModelError.contextSizeExceeded`、`UnavailableReason.systemNotReady` |
+| swift-syntax 603.0.2 | Swift 6.4 下 `scripts/spm.sh test` 全量通过（103 项） |
+| 产品 scheme `FairyStudio`（部署目标 27.0） | **首次在 iPhone 16 Pro Max (iOS 27.0) 实机 BUILD SUCCEEDED**（verification/logs/*-device-product-build-xcode27.log） |
+解除的阻塞：iOS 27 SDK、PCC API 符号、产品配置构建。仍待办：iOS 27 模拟器运行时下载；PCC 资格/entitlement 核对；实机 XCUITest automation mode 需用 Xcode 27 复验。
