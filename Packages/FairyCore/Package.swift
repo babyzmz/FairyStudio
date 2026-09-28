@@ -11,6 +11,9 @@ let package = Package(
         .library(name: "SwiftRuntime", targets: ["SwiftRuntime"]),
         .library(name: "NativeBridge", targets: ["NativeBridge"]),
         .library(name: "FoundationAI", targets: ["FoundationAI"]),
+        // W1：项目契约（共享，冻结）与项目存储（.mojoproject 文档包、ProjectStore、ProjectLibrary、ZIP 导入导出）。
+        .library(name: "ProjectContracts", targets: ["ProjectContracts"]),
+        .library(name: "ProjectCore", targets: ["ProjectCore"]),
         // M0-B：夹具引擎，仅供测试目标与 Verify-Debug 构建链接，Release 绝不链接（见 docs/progress/M0-B.md）。
         .library(name: "DevFixtures", targets: ["DevFixtures"]),
         .executable(name: "fairy-run", targets: ["fairy-run"]),
@@ -32,12 +35,17 @@ let package = Package(
         ]),
         .target(name: "NativeBridge", dependencies: ["RuntimeContracts"]),
         .target(name: "FoundationAI", dependencies: ["RuntimeContracts"]),
+        .target(name: "ProjectContracts", dependencies: ["RuntimeContracts"]),
+        .target(name: "ProjectCore", dependencies: ["ProjectContracts", "RuntimeContracts"]),
         .target(name: "DevFixtures", dependencies: ["RuntimeContracts"]),
         .executableTarget(name: "fairy-run", dependencies: ["SwiftRuntime", "RuntimeContracts"]),
         .testTarget(name: "RuntimeContractsTests", dependencies: ["RuntimeContracts"]),
         .testTarget(name: "SwiftRuntimeTests", dependencies: ["SwiftRuntime", "RuntimeContracts"], resources: [.copy("Fixtures")]),
         .testTarget(name: "NativeBridgeTests", dependencies: ["NativeBridge", "RuntimeContracts"]),
         .testTarget(name: "FoundationAITests", dependencies: ["FoundationAI"]),
+        .testTarget(name: "ProjectContractsTests", dependencies: ["ProjectContracts", "RuntimeContracts"]),
+        // SwiftRuntime 仅供测试证明模板可运行；ProjectCore 本身不依赖解释器。
+        .testTarget(name: "ProjectCoreTests", dependencies: ["ProjectCore", "ProjectContracts", "RuntimeContracts", "SwiftRuntime"]),
     ],
     swiftLanguageModes: [.v6]
 )
