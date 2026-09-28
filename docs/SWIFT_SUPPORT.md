@@ -6,7 +6,7 @@
 > 级别：supported = 已实现且有测试覆盖；partial = 已实现但有限制（见备注）；unsupported = 合法 Swift/SwiftUI，但运行时尚不支持，
 > 使用时产生 `unsupportedSyntax` / `unsupportedAPI` 诊断并附带对应的 capabilityID。
 
-## 语言语法（supported 53 / partial 11 / unsupported 34）
+## 语言语法（supported 56 / partial 13 / unsupported 29）
 
 | capabilityID | 名称 | 级别 | 签名 | 测试 | 备注 |
 |---|---|---|---|---|---|
@@ -27,12 +27,12 @@
 | `syntax.operator.wrapping` | 溢出运算 &+ &- &* | **supported** | — | `differential/01_int_arithmetic.swift` |  |
 | `syntax.operator.ternary` | 三元运算 ?: | **supported** | — | `differential/30_tuples_ternary_misc.swift` |  |
 | `syntax.operator.nilCoalescing` | 空合运算 ?? | **supported** | — | `differential/21_optionals.swift` |  |
-| `syntax.range` | 区间 ..< 与 ... | **supported** | — | `differential/06_ranges_for.swift` | 仅 Int 区间；单侧区间（a[..<n]、a[n...]）与 Double 区间尚不支持 |
+| `syntax.range` | 区间 ..< 与 ...（双侧）与单侧区间 | **supported** | — | `differential/06_ranges_for.swift` `differential/36_w3_partial_range.swift` | Int 区间；单侧（a[..<n]、a[n...]）支持构造、数组下标切片、打印与比较，for-in 单侧报错；Double 区间尚不支持 |
 | `syntax.if` | if / else if / else | **supported** | — | `differential/07_if_guard.swift` |  |
 | `syntax.guard` | guard … else | **supported** | — | `differential/07_if_guard.swift` |  |
-| `syntax.switch` | switch（字面量、区间、多值、枚举 case、default） | **supported** | — | `differential/08_switch_literals.swift` `differential/09_enums.swift` | 枚举/Bool 做穷尽性检查；不支持 fallthrough、元组模式、关联值模式 |
-| `syntax.switch.where` | switch case 的 where 子句 | partial | — | `differential/08_switch_literals.swift` |  |
-| `syntax.switch.valueBinding` | case let x | partial | — | `differential/08_switch_literals.swift` | 只支持绑定整个值 |
+| `syntax.switch` | switch（字面量、区间、多值、枚举 case、关联值模式、default） | **supported** | — | `differential/08_switch_literals.swift` `differential/09_enums.swift` `differential/32_w3_enum_associated.swift` | 枚举/Bool 做穷尽性检查；不支持 fallthrough、元组模式 |
+| `syntax.switch.where` | switch case 的 where 子句 | partial | — | `differential/08_switch_literals.swift` `differential/32_w3_enum_associated.swift` |  |
+| `syntax.switch.valueBinding` | case let x / 关联值绑定 | partial | — | `differential/08_switch_literals.swift` `differential/32_w3_enum_associated.swift` | 支持绑定整个值与 .case(let x[, …])（含标签校验、字面量混合、case let 前缀） |
 | `syntax.forIn` | for-in（区间、数组、字典、字符串、stride） | **supported** | — | `differential/06_ranges_for.swift` `differential/20_dictionaries.swift` |  |
 | `syntax.forIn.where` | for-in where | **supported** | — | `differential/06_ranges_for.swift` |  |
 | `syntax.forIn.tuplePattern` | for (i, x) in … 元组解构 | partial | — | `differential/06_ranges_for.swift` `differential/20_dictionaries.swift` | 只在 for-in 中支持一层元组模式 |
@@ -68,7 +68,7 @@
 | `syntax.optional.binding` | if let / guard let / while let | **supported** | — | `differential/07_if_guard.swift` `differential/21_optionals.swift` |  |
 | `syntax.optional.chaining` | 可选链 ?. | **supported** | — | `differential/21_optionals.swift` `differential/16_value_semantics.swift` |  |
 | `syntax.optional.forceUnwrap` | 强制解包 !（nil 时受控 trap） | **supported** | — | `differential/28_trap_force_unwrap_nil.swift` `runtimeTrapsBecomeDiagnostics` |  |
-| `syntax.tuple` | 元组值与标签访问 | partial | — | `differential/11_functions.swift` `differential/30_tuples_ternary_misc.swift` | 不支持元组解构声明/赋值 |
+| `syntax.tuple` | 元组值、标签访问与解构声明 | partial | — | `differential/11_functions.swift` `differential/30_tuples_ternary_misc.swift` `differential/31_w3_tuple.swift` | 支持 let/var 解构声明（扁平一层，通配符 _ 可跳过）；不支持解构赋值 |
 | `syntax.keyPath` | KeyPath \.self / \.prop | partial | — | `forEachOverIdentifiableAndRange` | 只用于 ForEach/List 的 id: |
 | `syntax.topLevelCode` | main.swift 顶层语句（脚本入口） | **supported** | — | `scriptEntryPrintsToConsoleAndCompletes` `topLevelStatementsOutsideMainSwiftIsError` |  |
 | `syntax.mainApp` | @main App + WindowGroup | partial | — | `counterViaMainAppEntry` `multipleMainAppsIsError` | 只支持单个 WindowGroup { 根视图 }；App 内不能有存储属性 |
@@ -82,7 +82,7 @@
 | `syntax.errorHandling` | throws / try / do-catch | unsupported | — | — |  |
 | `syntax.macro` | 宏（@Observable、#Preview …） | unsupported | — | — |  |
 | `syntax.attribute` | @State/@Binding/@main/@ViewBuilder/@discardableResult 之外的属性 | unsupported | — | — |  |
-| `syntax.tuplePattern` | 元组模式 / 解构声明 | unsupported | — | — |  |
+| `syntax.tuplePattern` | 元组解构声明 | partial | — | `differential/31_w3_tuple.swift` | 支持 let/var 解构声明（扁平一层）；不支持解构赋值、switch/if-case 元组模式 |
 | `syntax.typeCasting` | as / as? / is | unsupported | — | — |  |
 | `syntax.typealias` | typealias | unsupported | — | — |  |
 | `syntax.defer` | defer | unsupported | — | — |  |
@@ -94,11 +94,11 @@
 | `syntax.ifExpression` | if/switch 作为表达式 | unsupported | — | — |  |
 | `syntax.ifConfig` | #if 条件编译 | unsupported | — | — |  |
 | `syntax.availability` | #available | unsupported | — | — |  |
-| `syntax.function.inout` | inout 参数 | unsupported | — | — |  |
+| `syntax.function.inout` | inout 参数 | **supported** | — | `differential/34_w3_inout.swift` | 具名函数/方法/init 调用（copy-in/copy-out，&实参按地址回写）；函数值与动态分派调用不支持；同一变量多传不做独占检查 |
 | `syntax.function.variadic` | 可变参数 | unsupported | — | — |  |
-| `syntax.enum.associatedValues` | 带关联值的 enum | unsupported | — | — |  |
-| `syntax.struct.computedSetter` | 计算属性 setter | unsupported | — | — |  |
-| `syntax.struct.propertyObservers` | willSet / didSet | unsupported | — | — |  |
+| `syntax.enum.associatedValues` | 带关联值的 enum | **supported** | — | `differential/32_w3_enum_associated.swift` | 构造（显式 R.ok(…)/隐式 .ok(…)，标签校验）+ switch/if-case 模式匹配（含绑定、字面量、where）；带关联值的 case 无 allCases/rawValue |
+| `syntax.struct.computedSetter` | 计算属性 setter | **supported** | — | `differential/33_w3_setter_didset.swift` | get/set（set 用 newValue，可自定义参数名）；静态计算属性 setter 不支持；计算属性上的 mutating 方法调用不支持 |
+| `syntax.struct.propertyObservers` | didSet 属性观察器 | partial | — | `differential/33_w3_setter_didset.swift` | 存储属性/全局/static 的 didSet（赋值后触发一次，init 内不触发，自体钳制不递归）；mutating 方法整体写回与 $ 绑定写入不触发；willSet 忽略并警告 |
 | `syntax.struct.lazy` | lazy 属性 | unsupported | — | — |  |
 | `syntax.struct.failableInit` | init? | unsupported | — | — |  |
 | `syntax.closure.captureList` | 闭包捕获列表 [x] | unsupported | — | — |  |
@@ -109,7 +109,7 @@
 | `syntax.statement` | 其他语句 | unsupported | — | — |  |
 | `syntax.expression` | 其他表达式 | unsupported | — | — |  |
 
-## 标准库（supported 68 / partial 69 / unsupported 67）
+## 标准库（supported 72 / partial 67 / unsupported 66）
 
 | capabilityID | 名称 | 级别 | 签名 | 测试 | 备注 |
 |---|---|---|---|---|---|
@@ -131,7 +131,7 @@
 | `stdlib.Array.forEach` | Array.forEach | **supported** | `forEach(_:)` | `differential/19_array_higher_order.swift` |  |
 | `stdlib.Array.reduce` | Array.reduce | **supported** | `reduce(_:_:)` | `differential/19_array_higher_order.swift` |  |
 | `stdlib.Array.sorted` | Array.sorted | **supported** | `sorted() / sorted(by:)` | `differential/19_array_higher_order.swift` |  |
-| `stdlib.Array.reversed` | Array.reversed | **supported** | `reversed()` | `differential/06_ranges_for.swift` | 返回数组 |
+| `stdlib.Array.reversed` | Array.reversed | **supported** | `reversed()` | `differential/06_ranges_for.swift` `differential/18_arrays.swift` | 返回数组 |
 | `stdlib.Array.enumerated` | Array.enumerated | **supported** | `enumerated()` | `differential/19_array_higher_order.swift` | 返回 (offset:, element:) 数组 |
 | `stdlib.Array.first` | Array.first | **supported** | `first / first(where:)` | `differential/18_arrays.swift` `differential/19_array_higher_order.swift` |  |
 | `stdlib.Array.last` | Array.last | **supported** | `last` | `differential/18_arrays.swift` |  |
@@ -189,8 +189,8 @@
 | `stdlib.String.append` | String.append | **supported** | `append(_:) / +=` | `differential/03_strings.swift` |  |
 | `stdlib.String.split` | String.split | **supported** | `split(separator:)` | `differential/03_strings.swift` | 返回 [String] |
 | `stdlib.String.components` | String.components | partial | `components(separatedBy:)` | — | Foundation |
-| `stdlib.String.replacingOccurrences` | String.replacingOccurrences | partial | `replacingOccurrences(of:with:)` | — | Foundation |
-| `stdlib.String.trimmingCharacters` | String.trimmingCharacters | partial | `trimmingCharacters(in:)` | — | 只去除空白与换行 |
+| `stdlib.String.replacingOccurrences` | String.replacingOccurrences | **supported** | `replacingOccurrences(of:with:)` | `differential/03_strings.swift` |  |
+| `stdlib.String.trimmingCharacters` | String.trimmingCharacters | **supported** | `trimmingCharacters(in:)` | `differential/03_strings.swift` | 只去除空白与换行 |
 | `stdlib.String.reversed` | String.reversed | **supported** | `reversed()` | `differential/03_strings.swift` |  |
 | `stdlib.String.prefix` | String.prefix | partial | `prefix(_:)` | — |  |
 | `stdlib.String.suffix` | String.suffix | partial | `suffix(_:)` | — |  |
@@ -241,6 +241,8 @@
 | `stdlib.Bool.toggle` | Bool.toggle | **supported** | `toggle()` | `differential/04_bool_logic.swift` |  |
 | `stdlib.Bool.description` | Bool.description | partial | `description` | — |  |
 | `stdlib.print` | print | **supported** | `print(_:..., separator:terminator:)` | `differential/23_print_formatting.swift` | 输出为 .console(.stdout, …) 事件；格式与 Swift description/debugDescription 一致 |
+| `stdlib.String.format` | String(format:) | **supported** | `String(format:_:...)（仅 %.Nf 与 %%)` | `differential/35_w3_format_date.swift` `stringFormatIntArgActsAsDouble` | Int 实参按 Double 格式化（Swift 原生要求 Double）；其他占位符报 unsupportedAPI |
+| `stdlib.Date` | Date | **supported** | `Date() / Date.now（只读）` | `differential/35_w3_format_date.swift` | 只读基础：description/打印/==/</比较；无运算与格式化器；时钟读取是允许的非确定性（随机/网络仍一律拒绝） |
 | `stdlib.abs` | abs | **supported** | `abs(_:)` | `differential/01_int_arithmetic.swift` `differential/22_conversions.swift` |  |
 | `stdlib.min` | min | **supported** | `min(_:_:...)` | `differential/01_int_arithmetic.swift` |  |
 | `stdlib.max` | max | **supported** | `max(_:_:...)` | `differential/22_conversions.swift` |  |
@@ -262,7 +264,6 @@
 | `stdlib.CGSize` | CGSize | unsupported | — | — |  |
 | `stdlib.Calendar` | Calendar | unsupported | — | — |  |
 | `stdlib.Data` | Data | unsupported | — | — |  |
-| `stdlib.Date` | Date | unsupported | — | — |  |
 | `stdlib.DateFormatter` | DateFormatter | unsupported | — | — |  |
 | `stdlib.DispatchQueue` | DispatchQueue | unsupported | — | — |  |
 | `stdlib.DocumentGroup` | DocumentGroup | unsupported | — | — |  |
@@ -339,7 +340,7 @@
 | `propertyWrapper.SceneStorage` | @SceneStorage | unsupported | — | — |  |
 | `propertyWrapper.StateObject` | @StateObject | unsupported | — | — |  |
 
-## SwiftUI 视图（supported 14 / partial 11 / unsupported 42）
+## SwiftUI 视图（supported 24 / partial 5 / unsupported 38）
 
 | capabilityID | 名称 | 级别 | 签名 | 测试 | 备注 |
 |---|---|---|---|---|---|
@@ -355,12 +356,16 @@
 | `view.Toggle` | Toggle | **supported** | `Toggle(_:isOn:) / Toggle(isOn:label:)` | `textFieldSetBindingWritesBack` |  |
 | `view.ForEach` | ForEach | **supported** | `ForEach(data, id: \.self \| \.prop) { … } / ForEach(identifiable) / ForEach(range)` | `forEachReorderKeepsRowStateWithItsID` `forEachOverIdentifiableAndRange` | 行身份 = 稳定 id |
 | `view.List` | List | **supported** | `List { … } / List(data, id:) { … }` | `conditionalBranchesAndOnAppear` |  |
-| `view.NavigationStack` | NavigationStack | partial | — | `conditionalBranchesAndOnAppear` | 只渲染根内容；NavigationLink / navigationDestination 尚不支持 |
-| `view.ScrollView` | ScrollView | partial | — | — |  |
-| `view.Group` | Group | partial | — | — |  |
-| `view.Form` | Form | partial | — | — |  |
-| `view.Section` | Section | partial | — | — | 只支持字符串标题 |
-| `view.Image` | Image(systemName:) | partial | — | — |  |
+| `view.NavigationStack` | NavigationStack | **supported** | `NavigationStack { … } / NavigationStack(path: $path) { … }` | `conditionalBranchesAndOnAppear` `navigationPushPopUnbound` `navigationPathBinding` `navigationDestinationLinkForm` | path 绑定支持 [String] 子集；目标 for: 只支持 String/Int；navigationDestination 须写在栈内容内部 |
+| `view.ScrollView` | ScrollView | **supported** | `ScrollView([.vertical\|.horizontal]) { … }` | `w3ContainersRender` | 轴向透传；showsIndicators: 形式尚不支持 |
+| `view.Group` | Group | **supported** | — | `w3ContainersRender` |  |
+| `view.Form` | Form | **supported** | — | `w3ControlsRender` |  |
+| `view.Section` | Section | **supported** | `Section([header][footer:]) { … }（字符串）` | `w3ControlsRender` | header/footer 只支持字符串 |
+| `view.Image` | Image(systemName:) | **supported** | `Image(systemName:) / Image(_:)` | `w3ControlsRender` | SF Symbols 名称透传；Image("resource") 显示占位（M1 接入项目资源） |
+| `view.Slider` | Slider | **supported** | `Slider(value:in:[step:])` | `sliderBindingWritesBack` | value 需 Binding<Double>（VM 双向绑定）；in: 为 Int 闭区间；标签暂不显示 |
+| `view.Stepper` | Stepper | **supported** | `Stepper(_:value:[in:])` | `stepperRendersLabelAndBounds` | value 需 Binding<Int>；step:/onIncrement 形式尚不支持 |
+| `view.Picker` | Picker | **supported** | `Picker(_:selection:content:)` | `pickerOptionsAndSelection` | selection 需 Binding（String/Int 等可传输类型）；内容为 ForEach/静态 Text 行（每行需 .tag）；样式见 modifier.pickerStyle |
+| `view.NavigationLink` | NavigationLink | **supported** | `NavigationLink(_:value:)/NavigationLink(value:label:)/NavigationLink(_:destination:)` | `navigationPushPopUnbound` `navigationPathBinding` `navigationDestinationLinkForm` | value 只支持 String/Int；destination 形式按稳定链接 id 注册 |
 | `view.ProgressView` | ProgressView | partial | — | — |  |
 | `view.EmptyView` | EmptyView | partial | — | — |  |
 | `view.Color` | Color.red / Color(red:green:blue:) | partial | — | `modifiersMapToRenderModifiers` | 只作为修饰符参数使用，不能作为视图 |
@@ -393,17 +398,13 @@
 | `view.LinearGradient` | LinearGradient | unsupported | — | — |  |
 | `view.Link` | Link | unsupported | — | — |  |
 | `view.Menu` | Menu | unsupported | — | — |  |
-| `view.NavigationLink` | NavigationLink | unsupported | — | — |  |
 | `view.NavigationSplitView` | NavigationSplitView | unsupported | — | — |  |
 | `view.OutlineGroup` | OutlineGroup | unsupported | — | — |  |
 | `view.Path` | Path | unsupported | — | — |  |
-| `view.Picker` | Picker | unsupported | — | — |  |
 | `view.RadialGradient` | RadialGradient | unsupported | — | — |  |
 | `view.Rectangle` | Rectangle | unsupported | — | — |  |
 | `view.RoundedRectangle` | RoundedRectangle | unsupported | — | — |  |
 | `view.ShareLink` | ShareLink | unsupported | — | — |  |
-| `view.Slider` | Slider | unsupported | — | — |  |
-| `view.Stepper` | Stepper | unsupported | — | — |  |
 | `view.TabView` | TabView | unsupported | — | — |  |
 | `view.Table` | Table | unsupported | — | — |  |
 | `view.TextEditor` | TextEditor | unsupported | — | — |  |
@@ -411,7 +412,7 @@
 | `view.ToolbarItem` | ToolbarItem | unsupported | — | — |  |
 | `view.ViewThatFits` | ViewThatFits | unsupported | — | — |  |
 
-## SwiftUI 修饰符（supported 12 / partial 13 / unsupported 41）
+## SwiftUI 修饰符（supported 16 / partial 13 / unsupported 37）
 
 | capabilityID | 名称 | 级别 | 签名 | 测试 | 备注 |
 |---|---|---|---|---|---|
@@ -439,10 +440,12 @@
 | `modifier.tag` | tag | partial | — | — |  |
 | `modifier.onAppear` | onAppear | partial | `onAppear(perform:)` | `conditionalBranchesAndOnAppear` | 映射为 ActionID；由宿主发送 .appear(NodeID) 或 .action(ActionID) 触发，运行时不自动触发 |
 | `modifier.onDisappear` | onDisappear | partial | — | — | 同 onAppear |
-| `modifier.task` | task | partial | — | — | 同步子集：按 onAppear 处理，不支持 await |
+| `modifier.task` | task | partial | — | `taskRunsSyncBodyOnce` | 同步子集：与 onAppear 同机制（宿主触发，不自动执行）；体内 await 按同步执行，不支持取消 |
+| `modifier.navigationDestination` | navigationDestination | **supported** | `.navigationDestination(for: String.self/Int.self) { value in … }` | `navigationPathBinding` | B-2：for: 仅 String/Int；须写在栈内容内部（先于目标解析完成注册） |
+| `modifier.sheet` | sheet | **supported** | `.sheet(isPresented:onDismiss:content:)` | `sheetPresentDismiss` | B-3：isPresented Binding<Bool> + 内容闭包（捕获 state 读写直达）；手势关闭回传 .action(dismiss) 写 false 并跑 onDismiss；.dismissSheet 强制关闭不触发 onDismiss |
+| `modifier.alert` | alert | **supported** | `.alert(_:isPresented:actions:message:)` | `alertButtonsAndAutoDismiss` | B-4：标题 + Binding<Bool> + 一到两个 Button + 可选消息；每个按钮保证 action，点击后自动关闭 |
+| `modifier.pickerStyle` | pickerStyle | **supported** | `.pickerStyle(.segmented/.menu/.automatic)` | `pickerOptionsAndSelection` | 样式透传（接受并通过，桥接按默认样式渲染） |
 | `modifier.shadow` | shadow | unsupported | — | — |  |
-| `modifier.sheet` | sheet | unsupported | — | — |  |
-| `modifier.alert` | alert | unsupported | — | — |  |
 | `modifier.overlay` | overlay | unsupported | — | — |  |
 | `modifier.border` | border | unsupported | — | — |  |
 | `modifier.clipShape` | clipShape | unsupported | — | — |  |
@@ -473,11 +476,9 @@
 | `modifier.aspectRatio` | aspectRatio | unsupported | — | — |  |
 | `modifier.keyboardType` | keyboardType | unsupported | — | — |  |
 | `modifier.focused` | focused | unsupported | — | — |  |
-| `modifier.navigationDestination` | navigationDestination | unsupported | — | — |  |
 | `modifier.fullScreenCover` | fullScreenCover | unsupported | — | — |  |
 | `modifier.confirmationDialog` | confirmationDialog | unsupported | — | — |  |
 | `modifier.labelStyle` | labelStyle | unsupported | — | — |  |
-| `modifier.pickerStyle` | pickerStyle | unsupported | — | — |  |
 | `modifier.toggleStyle` | toggleStyle | unsupported | — | — |  |
 | `modifier.tabItem` | tabItem | unsupported | — | — |  |
 | `modifier.navigationBarTitleDisplayMode` | navigationBarTitleDisplayMode | unsupported | — | — |  |

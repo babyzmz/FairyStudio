@@ -58,29 +58,45 @@ ProgramSource ──► Parse ──► Index ──► Resolve/Compile ──�
   `let` 按值复制。声明语句用 `initLocal` 覆盖槽位，保证循环每次迭代是新绑定。
 
 ### 2.5 VM
-- `Value`：`int/double/bool/string/array/dict/range/tuple/record/enumCase/closure/function/metatype/view/box/stateCell/binding/symbol/keyPath/iterator`。
+- `Value`：`int/double/bool/string/date/array/dict/range/partialRange/tuple/record/enumCase/closure/function/metatype/view/box/stateCell/binding/symbol/keyPath/iterator`。
   数组、字典（保持插入顺序的 CoW 存储）、结构体记录借助 Swift 自身写时复制实现值语义。Optional 采用扁平表示（`nil` = `.none`）。
+  `partialRange`（单侧区间）只用于构造、数组下标切片、打印与比较；`enumCase` 带关联值 payload（`[]` = 无关联值）；
+  `date` 只读（`Date()`/`Date.now`，description 透传宿主格式）。
 - 单一值栈：帧的局部槽位 + 操作数都在 `stack` 上；`frames` 保存 `(function, pc, base, closure, onReturn)`。用户函数调用不递归宿主栈。
 - `invoke`：stdlib 高阶函数、视图 body 求值等宿主代码回调闭包时的可重入入口（宿主重入层数上限 160，见预算）。
 - 左值（`place` 指令）：根（局部/捕获/全局）+ 路径（字段、按名成员、元组下标、下标键、强制解包、可选链）。
   赋值/复合赋值原地修改（持有 inout 访问期间绝不回调 VM）；用户 mutating 方法与需要回调的 mutating 内建（`sort(by:)`、`removeAll(where:)`）
   采用"取出 → 执行 → 写回"，与 Swift 独占访问语义一致。路径中经过 `@State` 单元或 `@Binding` 时写穿到状态存储。
+- 计算属性 setter：路径末端是带 setter 的计算属性时，同步 `invoke` getter/setter（setter 返回 mutation 后的 self 再写回）；
+  无 setter 的计算属性赋值/复合赋值为类型错误；计算属性上的用户 mutating 方法调用为子集限制错误（请先读到局部变量）。
+- didSet：存储属性/全局/static 的 didSet 在 `.place` 赋值/复合赋值与 builtin mutating 调用后触发（由内向外，init 内不触发，
+  自体内对同一属性赋值只改值不递归，mutating 方法整体写回与 `$` 绑定写入不触发）；willSet 忽略并警告。
+- inout：`&place` 实参求值一次（键表达式存隐藏槽）→ 装箱（`boxTop`）传入，函数体内读写穿箱，返回后按隐藏槽写回
+  （copy-in/copy-out；同一变量多传不做独占检查；函数值与动态分派调用不支持）。
 - 运行错误全部是受控的 `VMError`：整数运算使用 `addingReportingOverflow` 等，越界/解包 nil/除零都显式检查，**绝不触发宿主原生 trap**。
 
 ### 2.6 UI（`ViewEvaluator` + `StateStore`）
-- 内建视图是 `ViewNode` 值（Text/Button/Stack/ForEach/…）；自定义 View 是 `record`，渲染时挂载状态并调用 `body` getter。
+- 内建视图是 `ViewNode` 值（Text/Button/Stack/ForEach/Slider/Stepper/Picker/…）；自定义 View 是 `record`，渲染时挂载状态并调用 `body` getter。
 - @ViewBuilder 为专门支持：语句序列 → `makeViewGroup`；`if/else`、`switch` → `wrapConditional(分支号)`；ForEach 内容是真正的闭包，按元素调用。
-- 修饰符在调用处校验并转换为 `RenderModifier`（`foregroundStyle` → `foregroundColor`）；`onAppear/onDisappear/task` 注册为 ActionID。
+- 修饰符在调用处校验并转换为 `RenderModifier`（`foregroundStyle` → `foregroundColor`）；`onAppear/onDisappear/task` 注册为 ActionID；
+  `navigationDestination` 注册类型→内容闭包（视图透传）；`sheet`/`alert` 求值内容闭包并附加宿主节点；`pickerStyle` 透传（视图不变）。
+- 导航（B-2）：栈内维护路径——有 `[String]` path 绑定则以绑定为权威（推入写绑定，Int 记为 `i:<数字>`），否则走内部路径；
+  `NavigationLink(value:)`（String/Int）与 `destination:` 形式按稳定 id 注册，`navigationPush` 解析后渲染 `navigationDestination` 子节点，
+  `navigationPop(count:)` 钳制到根；`for:` 只支持 String/Int，修饰符须写在栈内容内部。
+- 呈现（B-3/B-4）：`sheet`/`alert` 内容闭包每轮渲染重新求值（捕获的 state 读写直达存储）；
+  sheet 手势关闭回传 `.action(dismiss)`（写 false + 跑 onDismiss），`.dismissSheet` 强制关闭不触发 onDismiss；
+  alert 每个按钮保证 action，点击后先跑用户动作再自动关闭。
+- `.task` 同步子集：与 onAppear 同机制（宿主触发），体内 `await` 按同步执行（声明侧无 async）。
 - 每次输入处理后若状态变脏则从根重新求值，`revision + 1`。
 
 ## 3. IR 指令集
 
 | 类别 | 指令 | 说明 |
 |---|---|---|
-| 常量 | `pushInt/pushDouble/pushBool/pushString/pushNil/pushVoid/pushSymbol/pushKeyPath/pushFunction/pushMetatype/pushEnum` | |
-| 栈 | `pop/dup/swap` | |
+| 常量 | `pushInt/pushDouble/pushBool/pushString/pushNil/pushVoid/pushSymbol/pushKeyPath/pushFunction/pushMetatype/pushEnum/makeEnum`、`enumPayload(i)` | `makeEnum` 由关联值构造带 payload 的 case；`enumPayload` 取关联值（模式匹配绑定用，case 不符压 nil） |
+| 栈 | `pop/dup/swap`、`boxTop` | `boxTop` 把栈顶装箱（inout 实参传址） |
 | 变量 | `loadLocal/initLocal/storeLocal`、`loadCapture/storeCapture`、`loadGlobal/storeGlobal` | load 自动解引用箱/状态单元/绑定；store 写穿箱；全局惰性初始化 |
-| 成员 | `getField(i)`、`getMember(name)`、`getComputed(fn)`、`tupleElement`、`destructure(n)`、`subscriptGet` | |
+| 成员 | `getField(i)`、`getMember(name)`、`getComputed(fn)`、`tupleElement`、`destructure(n)`、`subscriptGet`、`makePartialRange(fromLower, closed)` | `destructure` 供解构声明与 for 元组模式；`makePartialRange` 由前后缀 `...`/`..<` 构造单侧区间 |
 | 左值 | `place(idx, op)`，op ∈ `assign/compound/callMutating/callMethod/load/projectBinding` | `projectBinding` 实现 `$x`、`$x.a`、`$xs[i]` |
 | 运算 | `binary(op, literalSide)`、`unary`、`forceUnwrap`、`toDouble`、`describe(SType)`、`concat(n)`、`matchEnumCase`、`matchSymbolCase`、`rangeContains` | `literalSide` 标记可做 Int→Double 动态回退的一侧 |
 | 控制流 | `jump/jumpIfFalse/jumpIfTrue/jumpIfNil/jumpIfNotNil`、`loop(target)`（回边检查点）、`iterMake/iterNext` | 短路逻辑、`??`、可选链都由跳转实现 |
