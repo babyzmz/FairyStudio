@@ -108,7 +108,12 @@ extension Compiler {
             unsupported("类型转换 as / is", e, "syntax.typeCasting")
         } else if e.is(TryExprSyntax.self) {
             unsupported("try 错误处理", e, "syntax.errorHandling")
-        } else if e.is(AwaitExprSyntax.self) {
+        } else if let aw = e.as(AwaitExprSyntax.self) {
+            // .task 同步子集：await 按同步执行（声明侧无 async，await 后必为同步调用）
+            if taskSyncDepth > 0 {
+                use("modifier.task")
+                return compileExpr(aw.expression, expected: expected)
+            }
             unsupported("await 异步", e, "syntax.asyncAwait")
         } else if e.is(InOutExprSyntax.self) {
             unsupported("inout 参数 &x", e, "syntax.function.inout")
@@ -120,8 +125,8 @@ extension Compiler {
             error(.typeCheck, "'_' 只能出现在赋值号左侧。", e)
         } else if e.is(GenericSpecializationExprSyntax.self) {
             unsupported("显式泛型参数", e, "syntax.generics")
-        } else if e.is(PostfixOperatorExprSyntax.self) {
-            unsupported("后缀运算符", e, "syntax.operatorDecl")
+        } else if let post = e.as(PostfixOperatorExprSyntax.self) {
+            return compilePostfix(post)
         } else if let a = e.as(AssignmentExprSyntax.self) {
             error(.typeCheck, "赋值不能作为值使用。", a)
         } else {
@@ -152,6 +157,7 @@ extension Compiler {
             let kt = compileExpr(args[0].expression, expected: .int)
             emit(.subscriptGet(argc: 1, label: nil))
             if case .range = kt { return bt }
+            if case .partialRange = kt { return bt }
             if kt.isKnown && kt != .int { error(.typeCheck, "数组下标必须是 Int，得到 '\(kt)'。", args[0].expression) }
             use("stdlib.Array.subscript")
             return el
@@ -485,6 +491,15 @@ extension Compiler {
 
     func compilePrefix(_ p: PrefixOperatorExprSyntax, expected: SType?) -> SType {
         switch p.operator.text {
+        case "..<", "...":
+            // 单侧区间上界：`..<4` / `...5`
+            use("syntax.range")
+            let t = compileExpr(p.expression, expected: .int)
+            if t == .double {
+                unsupported("Double 区间", p, "syntax.range")
+            }
+            emit(.makePartialRange(fromLower: false, closed: p.operator.text == "..."))
+            return .partialRange(lower: false, closed: p.operator.text == "...")
         case "-":
             use("syntax.operator.arithmetic")
             let t = compileExpr(p.expression, expected: expected?.unwrapped.isNumeric == true ? expected?.unwrapped : nil)
@@ -509,6 +524,22 @@ extension Compiler {
             emit(.pushVoid)
             return .unknown
         }
+    }
+
+    /// 后缀运算符：目前仅支持单侧区间下界 `2...`，其余报 unsupported。
+    func compilePostfix(_ p: PostfixOperatorExprSyntax) -> SType {
+        if p.operator.text == "..." {
+            use("syntax.range")
+            let t = compileExpr(p.expression, expected: .int)
+            if t == .double {
+                unsupported("Double 区间", p, "syntax.range")
+            }
+            emit(.makePartialRange(fromLower: true, closed: true))
+            return .partialRange(lower: true, closed: true)
+        }
+        unsupported("后缀运算符 '\(p.operator.text)'", p, "syntax.operatorDecl")
+        emit(.pushVoid)
+        return .unknown
     }
 
     func compileTernary(_ t: TernaryExprSyntax, expected: SType?) -> SType {

@@ -79,6 +79,10 @@ final class StoredFieldDecl {
     let fileIndex: Int
     let node: Syntax
     var type: SType = .unknown
+    /// didSet 观察器（存储属性）：body + oldValue 参数名（nil 表示隐式 oldValue）+ 编译后函数 id。
+    var didSetBody: CodeBlockItemListSyntax?
+    var didSetParam: String?
+    var didSetFunctionID = -1
     init(name: String, typeSyntax: TypeSyntax?, initializer: ExprSyntax?, isLet: Bool, wrapper: PropertyWrapperKind,
          access: AccessLevel, setterAccess: AccessLevel, fileIndex: Int, node: Syntax) {
         self.name = name; self.typeSyntax = typeSyntax; self.initializer = initializer; self.isLet = isLet
@@ -97,6 +101,10 @@ final class ComputedDecl {
     let isViewBuilder: Bool
     var type: SType = .unknown
     var functionID = -1
+    /// setter（get/set 计算属性）：body + newValue 参数名 + 编译后函数 id（-1 表示只读）。
+    var setterBody: CodeBlockItemListSyntax?
+    var setterParam: String = "newValue"
+    var setterFunctionID = -1
     init(name: String, typeSyntax: TypeSyntax?, body: CodeBlockItemListSyntax, isStatic: Bool, access: AccessLevel,
          fileIndex: Int, node: Syntax, isViewBuilder: Bool) {
         self.name = name; self.typeSyntax = typeSyntax; self.body = body; self.isStatic = isStatic; self.access = access
@@ -153,6 +161,10 @@ final class GlobalDecl {
     let ownerType: Int?
     var type: SType = .unknown
     var globalID = -1
+    /// didSet 观察器（全局变量 / static 存储属性）：body + oldValue 参数名 + 编译后函数 id。
+    var didSetBody: CodeBlockItemListSyntax?
+    var didSetParam: String?
+    var didSetFunctionID = -1
     init(name: String, typeSyntax: TypeSyntax?, initializer: ExprSyntax?, isLet: Bool, fileIndex: Int, node: Syntax,
          access: AccessLevel, isMainTopLevel: Bool, ownerType: Int?) {
         self.name = name; self.typeSyntax = typeSyntax; self.initializer = initializer; self.isLet = isLet
@@ -164,6 +176,8 @@ final class EnumCaseInfo {
     let name: String
     let rawValue: ExprSyntax?
     let node: Syntax
+    /// 关联值形参（标签 + 类型写法）；空数组表示无关联值。
+    var associated: [(label: String?, type: TypeSyntax?)] = []
     init(name: String, rawValue: ExprSyntax?, node: Syntax) { self.name = name; self.rawValue = rawValue; self.node = node }
 }
 

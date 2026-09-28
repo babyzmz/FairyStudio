@@ -153,7 +153,10 @@ extension Compiler {
             for c in t.computed {
                 if let ts = c.typeSyntax { c.type = resolveType(ts, file: c.fileIndex, selfType: t.id) }
                 c.functionID = allocFunction()
+                if c.setterBody != nil { c.setterFunctionID = allocFunction() }
             }
+            for f in t.fields where f.didSetBody != nil { f.didSetFunctionID = allocFunction() }
+            for g in t.statics where g.didSetBody != nil { g.didSetFunctionID = allocFunction() }
             for m in t.methods {
                 resolveFunc(m, selfType: t.id)
             }
@@ -181,6 +184,7 @@ extension Compiler {
             if let ts = g.typeSyntax { g.type = resolveType(ts, file: g.fileIndex, selfType: g.ownerType) } else if let i = g.initializer {
                 g.type = literalType(i)
             }
+            if g.didSetBody != nil { g.didSetFunctionID = allocFunction() }
             if !g.isMainTopLevel { globalInitFunctions[g.globalID] = allocFunction() }
         }
     }
@@ -251,6 +255,8 @@ extension Compiler {
             info.fieldWrappers = t.fields.map(\.wrapper)
             for (i, f) in t.fields.enumerated() { info.fieldIndex[f.name] = i }
             for c in t.computed where !c.isStatic { info.computed[c.name] = c.functionID }
+            for c in t.computed where !c.isStatic && c.setterFunctionID >= 0 { info.computedSetters[c.name] = c.setterFunctionID }
+            for f in t.fields where f.didSetFunctionID >= 0 { info.didSetFields[f.name] = f.didSetFunctionID }
             for m in t.methods {
                 info.methods[m.fullName] = MethodInfo(function: m.functionID, isMutating: m.isMutating, isStatic: m.isStatic,
                                                       paramLabels: m.labels, paramTypes: m.params.map(\.type), returnType: m.returnType,
@@ -262,6 +268,7 @@ extension Compiler {
             info.defaultsFunction = t.defaultsFunction >= 0 ? t.defaultsFunction : nil
             info.zeroArgInit = t.inits.first(where: { $0.params.isEmpty })?.functionID
             info.caseNames = t.cases.map(\.name)
+            info.casePayloadLabels = t.cases.map { $0.associated.map(\.label) }
             info.rawValues = _rawValues[t.id]
             info.conformances = Set(t.conformances)
             return info

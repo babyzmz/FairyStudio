@@ -75,6 +75,10 @@ extension Compiler {
                 continue
             }
             guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else {
+                if let tp = binding.pattern.as(TuplePatternSyntax.self) {
+                    compileTupleDestructure(tp, binding: binding, isLet: isLet, annotated: annotated)
+                    continue
+                }
                 unsupported("元组模式 / 解构声明", binding.pattern, "syntax.tuplePattern")
                 for n in patternNames(binding.pattern) { _ = declareLocal(n, isLet: isLet, type: .unknown) }
                 continue
@@ -100,8 +104,52 @@ extension Compiler {
         }
     }
 
-    func compileNestedFunc(_ fn: FunctionDeclSyntax) {
-        use("syntax.function.nested")
+    /// `let (a, b) = 元组` / `var (a, _, c): (Int, Double, String) = …`（扁平一层）。
+    func compileTupleDestructure(_ tp: TuplePatternSyntax, binding: PatternBindingSyntax, isLet: Bool, annotated: SType?) {
+        use("syntax.tuplePattern")
+        let elems = Array(tp.elements)
+        var names: [String?] = []
+        var flat = true
+        for el in elems {
+            if let id = el.pattern.as(IdentifierPatternSyntax.self) { names.append(id.identifier.text) }
+            else if el.pattern.is(WildcardPatternSyntax.self) { names.append(nil) }
+            else { flat = false; break }
+        }
+        var annoElems: [SType]?
+        if let annotated {
+            if case .tuple(let ts, _) = annotated, ts.count == elems.count { annoElems = ts }
+            else if let ta = binding.typeAnnotation {
+                error(.typeCheck, "解构声明的类型标注应为 \(elems.count) 元组，得到 '\(annotated)'。", ta)
+            }
+        }
+        guard flat, let initExpr = binding.initializer?.value else {
+            if flat {
+                error(.typeCheck, "解构声明 '\(binding.pattern.trimmedDescription)' 需要初始值。", binding.pattern)
+            } else {
+                unsupported("嵌套元组模式", binding.pattern, "syntax.tuplePattern")
+            }
+            for n in patternNames(binding.pattern) { _ = declareLocal(n, isLet: isLet, type: .unknown) }
+            return
+        }
+        let rhsT = compileExpr(initExpr, expected: annotated)
+        var rhsElems: [SType]?
+        if case .tuple(let ts, _) = rhsT, ts.count == elems.count { rhsElems = ts }
+        if rhsT.isKnown && rhsElems == nil {
+            error(.typeCheck, "解构声明的初始值应为 \(elems.count) 元组，得到 '\(rhsT)'。", initExpr)
+        }
+        if let annotated { checkAssignable(annotated, rhsT, initExpr) }
+        emit(.destructure(elems.count))
+        var slots: [Int?] = []
+        for (i, n) in names.enumerated() {
+            let t = annoElems?[i] ?? rhsElems?[i] ?? .unknown
+            if let n { slots.append(declareLocal(n, isLet: isLet, type: t).slot) } else { slots.append(nil) }
+        }
+        for s in slots.reversed() {
+            if let s { emit(.initLocal(s)) } else { emit(.pop) }
+        }
+    }
+
+    func compileNestedFunc(_ fn: FunctionDeclSyntax) {        use("syntax.function.nested")
         guard let decl = makeFuncDecl(fn, file: fb.fileIndex, inType: nil), let body = fn.body else { return }
         for p in decl.params where p.defaultValue != nil {
             unsupported("嵌套函数的默认参数", p.defaultValue!, "syntax.function.defaultArguments")
@@ -113,7 +161,7 @@ extension Compiler {
         var caps: [CaptureSource] = []
         let parent = fb
         withFunction(id: id, name: decl.fullName, file: fb.fileIndex, parent: parent) { b in
-            for (i, p) in decl.params.enumerated() { _ = declareLocal(p.name, isLet: true, type: ps[i]) }
+            for (i, p) in decl.params.enumerated() { _ = declareLocal(p.name, isLet: !p.isInout, type: ps[i]) }
             b.paramCount = decl.params.count
             b.paramCoercions = ps.map { coercion(for: $0) }
             b.returnType = ret
@@ -552,11 +600,158 @@ extension Compiler {
         }
     }
 
+    /// 带关联值的 enum case 模式：`.ok(let x)`、`R.err(0, let s)`、`case let .ok(x)`。
+    /// 栈顶留 Bool；`let` 绑定在测试中直接声明并初始化（未命中分支时为 nil 占位，
+    /// 但只有命中的分支体可达，故体内的绑定值正确；`enumPayload` 在 case 不符时压 nil 而非 trap）。
+    func compileAssociatedCallPattern(_ call: FunctionCallExprSyntax, subjectSlot subj: Int, subjectType subjT: SType,
+                                      forceLet: Bool = false) {
+        use("syntax.enum.associatedValues")
+        guard let member = call.calledExpression.as(MemberAccessExprSyntax.self) else {
+            error(.typeCheck, "此种模式不是 enum case。", call.calledExpression)
+            emit(.pushBool(false))
+            return
+        }
+        let caseName = member.declName.baseName.text
+        var tid: Int?
+        if member.base == nil {
+            if case .named(let t, _) = subjT, types[t].kind == .enumType { tid = t }
+        } else if let b = member.base?.as(DeclReferenceExprSyntax.self), let t = typeByName[b.baseName.text],
+                  types[t].kind == .enumType {
+            tid = t
+        }
+        guard let tid else {
+            error(.typeCheck, "无法把模式 '.\(caseName)(…)' 解析为 enum case（请确保 switch 的值是已知 enum 类型）。",
+                  member.declName)
+            emit(.pushBool(false))
+            return
+        }
+        guard let idx = types[tid].caseIndex(caseName) else {
+            error(.nameResolution, "enum '\(types[tid].name)' 没有 case '\(caseName)'。", member.declName)
+            emit(.pushBool(false))
+            return
+        }
+        let info = types[tid].cases[idx]
+        if info.associated.isEmpty {
+            error(.typeCheck, "case '.\(caseName)' 没有关联值，不能带括号匹配。", call)
+            emit(.pushBool(false))
+            return
+        }
+        let params = info.associated
+        let args = Array(call.arguments)
+        guard args.count == params.count else {
+            error(.typeCheck, "case '.\(caseName)' 有 \(params.count) 个关联值，模式中给了 \(args.count) 个。", call)
+            emit(.pushBool(false))
+            return
+        }
+        for (i, a) in args.enumerated() {
+            if a.label?.text != params[i].label {
+                error(.typeCheck, "case '.\(caseName)' 第 \(i + 1) 个关联值的标签应为 '\(params[i].label ?? "_")'。", a)
+            }
+        }
+        // 形参静态类型（绑定声明用）
+        let paramTypes: [SType] = params.map { p in
+            p.type.map { resolveType($0, file: fb.fileIndex, selfType: currentSelfTypeID) } ?? .unknown
+        }
+        // 分类：绑定 vs 值比较
+        enum ArgKind { case bind(name: String, isLet: Bool); case skip; case value(ExprSyntax) }
+        var kinds: [ArgKind] = []
+        var ok = true
+        for a in args {
+            if let pat = a.expression.as(PatternExprSyntax.self) {
+                let inner = pat.pattern
+                if let vb = inner.as(ValueBindingPatternSyntax.self),
+                   let id = vb.pattern.as(IdentifierPatternSyntax.self) {
+                    kinds.append(.bind(name: id.identifier.text, isLet: vb.bindingSpecifier.tokenKind == .keyword(.let)))
+                } else if let id = inner.as(IdentifierPatternSyntax.self) {
+                    kinds.append(.bind(name: id.identifier.text, isLet: true))
+                } else if inner.is(WildcardPatternSyntax.self) {
+                    kinds.append(.skip)
+                } else {
+                    unsupported("关联值中的此种子模式", inner, "syntax.enum.associatedValues")
+                    ok = false
+                }
+            } else if let ref = a.expression.as(DeclReferenceExprSyntax.self), ref.baseName.text == "_" {
+                kinds.append(.skip)
+            } else if a.expression.is(DiscardAssignmentExprSyntax.self) {
+                kinds.append(.skip)
+            } else if forceLet, let ref = a.expression.as(DeclReferenceExprSyntax.self), ref.argumentNames == nil {
+                kinds.append(.bind(name: ref.baseName.text, isLet: true))
+            } else {
+                kinds.append(.value(a.expression))
+            }
+        }
+        guard ok else {
+            emit(.pushBool(false))
+            return
+        }
+        // 先声明绑定（槽位），测试成功后再初始化
+        var slots: [Int?] = []
+        for (i, k) in kinds.enumerated() {
+            switch k {
+            case .bind(let name, let isLet):
+                slots.append(declareLocal(name, isLet: isLet, type: paramTypes[i]).slot)
+            default:
+                slots.append(nil)
+            }
+        }
+        emit(.loadLocal(subj))
+        emit(.matchEnumCase(type: tid, caseIndex: idx))
+        var failJumps: [Int] = []
+        failJumps.append(emitJump { .jumpIfFalse($0) })
+        for (i, k) in kinds.enumerated() {
+            if case .value(let e) = k {
+                emit(.loadLocal(subj))
+                emit(.enumPayload(index: i))
+                let et = paramTypes[i]
+                let lt = compileExpr(e, expected: et.isKnown ? et : nil)
+                if et.isKnown && lt.isKnown && et.isConcreteScalar && lt.isConcreteScalar && et.unwrapped != lt.unwrapped {
+                    error(.typeCheck, "关联值模式类型 '\(lt)' 与 case 声明 '\(et)' 不匹配。", e)
+                }
+                emit(.binary(.eq, .none))
+                failJumps.append(emitJump { .jumpIfFalse($0) })
+            }
+        }
+        for (i, s) in slots.enumerated() {
+            if let s {
+                emit(.loadLocal(subj))
+                emit(.enumPayload(index: i))
+                emit(.initLocal(s))
+            }
+        }
+        emit(.pushBool(true))
+        let end = emitJump { .jump($0) }
+        for f in failJumps { patch(f, to: here) }
+        emit(.pushBool(false))
+        patch(end, to: here)
+    }
+
     func noteCoverage(_ p: PatternSyntax, _ t: SType, _ cases: inout Set<Int>, _ bools: inout Set<Bool>, _ catchAll: inout Bool) {
+        if p.is(WildcardPatternSyntax.self) { catchAll = true; return }
+        if let vb = p.as(ValueBindingPatternSyntax.self) {
+            // `case let .ok(x)`：内层若是带关联值的 case 也计入穷尽
+            if let inner = vb.pattern.as(ExpressionPatternSyntax.self),
+               let call = inner.expression.as(FunctionCallExprSyntax.self),
+               let m = call.calledExpression.as(MemberAccessExprSyntax.self),
+               case .named(let tid, _) = t, types[tid].kind == .enumType,
+               let idx = types[tid].caseIndex(m.declName.baseName.text) {
+                cases.insert(idx)
+                return
+            }
+            if vb.pattern.is(IdentifierPatternSyntax.self) { catchAll = true }
+            return
+        }
         if p.is(WildcardPatternSyntax.self) { catchAll = true; return }
         if let vb = p.as(ValueBindingPatternSyntax.self), vb.pattern.is(IdentifierPatternSyntax.self) { catchAll = true; return }
         guard let ep = p.as(ExpressionPatternSyntax.self) else { return }
         if let b = ep.expression.as(BooleanLiteralExprSyntax.self) { bools.insert(b.literal.tokenKind == .keyword(.true)) }
+        // 带关联值的 case 模式 `.ok(…)` 同样计入穷尽（where 子句的分支本就不计入，由调用方区分）
+        if let call = ep.expression.as(FunctionCallExprSyntax.self),
+           let m = call.calledExpression.as(MemberAccessExprSyntax.self),
+           case .named(let tid, _) = t, types[tid].kind == .enumType,
+           let idx = types[tid].caseIndex(m.declName.baseName.text) {
+            cases.insert(idx)
+            return
+        }
         if case .named(let tid, _) = t, let m = ep.expression.as(MemberAccessExprSyntax.self),
            let idx = types[tid].caseIndex(m.declName.baseName.text) {
             cases.insert(idx)
@@ -583,6 +778,13 @@ extension Compiler {
             return
         }
         if let vb = pattern.as(ValueBindingPatternSyntax.self) {
+            // `case let .ok(x)`：整个模式前缀 let/var，内层按绑定处理
+            if let inner = vb.pattern.as(ExpressionPatternSyntax.self),
+               let call = inner.expression.as(FunctionCallExprSyntax.self),
+               call.calledExpression.is(MemberAccessExprSyntax.self) {
+                compileAssociatedCallPattern(call, subjectSlot: subj, subjectType: subjT, forceLet: true)
+                return
+            }
             guard let ident = vb.pattern.as(IdentifierPatternSyntax.self) else {
                 unsupported("带关联值绑定的模式", vb, "syntax.enum.associatedValues")
                 emit(.pushBool(false))
@@ -633,8 +835,7 @@ extension Compiler {
             }
         }
         if e.is(FunctionCallExprSyntax.self), let call = e.as(FunctionCallExprSyntax.self), call.calledExpression.is(MemberAccessExprSyntax.self) {
-            unsupported("带关联值的 enum case 模式", e, "syntax.enum.associatedValues")
-            emit(.pushBool(false))
+            compileAssociatedCallPattern(call, subjectSlot: subj, subjectType: subjT)
             return
         }
         if e.is(TupleExprSyntax.self), let t = e.as(TupleExprSyntax.self), t.elements.count > 1 {

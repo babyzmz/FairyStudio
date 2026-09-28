@@ -157,6 +157,11 @@ extension Compiler {
                 if t.isKnown, case .binding = t {} else if t.isKnown {
                     error(.typeCheck, "\(name) 的 \(p.label ?? "参数") 需要 Binding，请使用 $变量（例如 $name）。", a.expr)
                 }
+            case .range:
+                let t = compileExpr(a.expr, expected: .range(closed: true))
+                if t.isKnown, !t.isRange {
+                    error(.typeCheck, "\(name) 的 \(p.label ?? "参数") 需要区间（如 0...100）。", a.expr)
+                }
             case .keyPath:
                 hasID = true
                 compileExpr(a.expr, expected: nil)
@@ -177,6 +182,14 @@ extension Compiler {
                 }
                 if c.signature != nil {
                     error(.typeCheck, "\(name) 的内容闭包不接受参数。", c)
+                }
+                if name == "Slider" {
+                    warning("Slider 的标签暂不显示（子集限制：只保留滑杆本体）。", a.expr)
+                }
+                // NavigationLink 的 destination 按闭包保存（每次推入时重新求值，捕获的 state 保持最新）
+                if name == "NavigationLink" && p.label == "destination" {
+                    _ = compileClosure(c, expected: .function([], .view), builder: true)
+                    continue
                 }
                 compileBuilderBlock(c.statements)
             case .action:
@@ -199,8 +212,180 @@ extension Compiler {
         return name == "Color" ? .symbol : .view
     }
 
-    func checkIdentifiable(_ elem: SType, node: some SyntaxProtocol, viewName: String) {
-        switch elem {
+    /// `.sheet(isPresented:onDismiss:content:)`（B-3 子集）。
+    func compileSheetModifierCall(_ base: ExprSyntax, _ args: [CallArg], _ node: MemberAccessExprSyntax) -> SType {
+        use("modifier.sheet")
+        var presented: CallArg?
+        var content: ClosureExprSyntax?
+        var onDismiss: ClosureExprSyntax?
+        var bad = false
+        for a in args {
+            if a.label == "isPresented" { presented = a }
+            else if a.label == "onDismiss" {
+                guard let c = a.closure else {
+                    error(.typeCheck, ".sheet 的 onDismiss: 需要一个闭包。", a.expr)
+                    bad = true
+                    continue
+                }
+                onDismiss = c
+            } else if a.isTrailing && a.label == nil && content == nil {
+                guard let c = a.closure else {
+                    error(.typeCheck, ".sheet 的内容需要一个 { … } 视图闭包。", a.expr)
+                    bad = true
+                    continue
+                }
+                content = c
+            } else {
+                error(.unsupportedAPI, ".sheet 的此种参数形式运行时尚不支持（支持 isPresented:/onDismiss:/内容闭包）。", a.expr,
+                      capability: "modifier.sheet")
+                bad = true
+            }
+        }
+        guard let presented, let content, !bad else {
+            if presented == nil || content == nil {
+                error(.typeCheck, ".sheet 需要 isPresented: 与内容闭包，例如 `.sheet(isPresented: $flag) { … }`。", node.declName)
+            }
+            emit(.pushVoid)
+            return .view
+        }
+        let bt = compileChainBase(base)
+        if bt.isKnown && !isViewType(bt) && bt != .symbol {
+            error(.typeCheck, "修饰符 .sheet 只能用于 View，接收者是 '\(bt)'。", node.declName)
+        }
+        let pt = compileExpr(presented.expr, expected: nil)
+        if pt.isKnown, case .binding = pt {} else if pt.isKnown {
+            error(.typeCheck, ".sheet 的 isPresented: 需要 Binding<Bool>，请使用 $变量。", presented.expr)
+        }
+        if let onDismiss {
+            _ = compileClosure(onDismiss, expected: .function([], .void), builder: false)
+        }
+        _ = compileClosure(content, expected: .function([], .view), builder: true)
+        var labels: [String?] = ["isPresented"]
+        if onDismiss != nil { labels.append("onDismiss") }
+        labels.append("content")
+        emit(.callMethod(name: fullName("sheet", labels), argc: labels.count))
+        return .view
+    }
+
+    /// `.alert(title:isPresented:actions:message:)`（B-4 子集）。
+    func compileAlertModifierCall(_ base: ExprSyntax, _ args: [CallArg], _ node: MemberAccessExprSyntax) -> SType {
+        use("modifier.alert")
+        var title: CallArg?
+        var presented: CallArg?
+        var actions: ClosureExprSyntax?
+        var message: ClosureExprSyntax?
+        var bad = false
+        for a in args {
+            if a.label == nil && !a.isTrailing && title == nil { title = a }
+            else if a.label == "isPresented" { presented = a }
+            else if a.label == "actions" {
+                guard let c = a.closure else {
+                    error(.typeCheck, ".alert 的 actions: 需要一个按钮闭包。", a.expr)
+                    bad = true
+                    continue
+                }
+                actions = c
+            } else if a.label == "message" {
+                guard let c = a.closure else {
+                    error(.typeCheck, ".alert 的 message: 需要一个视图闭包。", a.expr)
+                    bad = true
+                    continue
+                }
+                message = c
+            } else if a.isTrailing && a.label == nil && actions == nil {
+                guard let c = a.closure else {
+                    error(.typeCheck, ".alert 的按钮需要一个 { … } 闭包。", a.expr)
+                    bad = true
+                    continue
+                }
+                actions = c
+            } else {
+                error(.unsupportedAPI, ".alert 的此种参数形式运行时尚不支持（支持 标题/isPresented:/actions:/message:）。", a.expr,
+                      capability: "modifier.alert")
+                bad = true
+            }
+        }
+        guard let title, let presented, let actions, !bad else {
+            if title == nil || presented == nil || actions == nil {
+                error(.typeCheck, ".alert 需要标题、isPresented: 与按钮闭包，例如 `.alert(\"T\", isPresented: $f) { … }`。", node.declName)
+            }
+            emit(.pushVoid)
+            return .view
+        }
+        let bt = compileChainBase(base)
+        if bt.isKnown && !isViewType(bt) && bt != .symbol {
+            error(.typeCheck, "修饰符 .alert 只能用于 View，接收者是 '\(bt)'。", node.declName)
+        }
+        let tt = compileExpr(title.expr, expected: .string)
+        if tt.isKnown && tt != .string {
+            error(.typeCheck, ".alert 的标题需要 String。", title.expr)
+        }
+        let pt = compileExpr(presented.expr, expected: nil)
+        if pt.isKnown, case .binding = pt {} else if pt.isKnown {
+            error(.typeCheck, ".alert 的 isPresented: 需要 Binding<Bool>，请使用 $变量。", presented.expr)
+        }
+        _ = compileClosure(actions, expected: .function([], .view), builder: true)
+        if let message {
+            _ = compileClosure(message, expected: .function([], .view), builder: true)
+        }
+        var labels: [String?] = [nil, "isPresented", "actions"]
+        if message != nil { labels.append("message") }
+        emit(.callMethod(name: fullName("alert", labels), argc: labels.count))
+        return .view
+    }
+
+    /// `.navigationDestination(for:content:)`（B-2 子集：for: 只支持 String.self/Int.self）。
+    func compileNavDestinationModifierCall(_ base: ExprSyntax, _ args: [CallArg], _ node: MemberAccessExprSyntax) -> SType {
+        use("modifier.navigationDestination")
+        var forArg: CallArg?
+        var content: ClosureExprSyntax?
+        var bad = false
+        for a in args {
+            if a.label == "for" && forArg == nil { forArg = a }
+            else if a.isTrailing && content == nil {
+                guard let c = a.closure else {
+                    error(.typeCheck, ".navigationDestination 的内容需要一个 { value in … } 闭包。", a.expr)
+                    bad = true
+                    continue
+                }
+                content = c
+            } else {
+                error(.unsupportedAPI, ".navigationDestination 的此种参数形式运行时尚不支持（支持 for:/内容闭包）。", a.expr,
+                      capability: "modifier.navigationDestination")
+                bad = true
+            }
+        }
+        var typeName: String?
+        if let forArg {
+            if let m = forArg.expr.as(MemberAccessExprSyntax.self), m.declName.baseName.text == "self",
+               let b = m.base?.as(DeclReferenceExprSyntax.self), b.baseName.text == "String" || b.baseName.text == "Int" {
+                typeName = b.baseName.text
+            } else {
+                error(.unsupportedAPI, ".navigationDestination(for:) 只支持 String.self / Int.self（子集，见契约 B-2）。", forArg.expr,
+                      capability: "modifier.navigationDestination")
+                bad = true
+            }
+        }
+        guard let typeName, let content, !bad else {
+            if forArg == nil || content == nil {
+                error(.typeCheck, ".navigationDestination 需要 for: 与内容闭包，例如 `.navigationDestination(for: String.self) { v in … }`。",
+                      node.declName)
+            }
+            emit(.pushVoid)
+            return .view
+        }
+        let bt = compileChainBase(base)
+        if bt.isKnown && !isViewType(bt) && bt != .symbol {
+            error(.typeCheck, "修饰符 .navigationDestination 只能用于 View，接收者是 '\(bt)'。", node.declName)
+        }
+        emit(.pushSymbol(typeName))
+        let elem: SType = typeName == "String" ? .string : .int
+        _ = compileClosure(content, expected: .function([elem], .view), builder: true)
+        emit(.callMethod(name: fullName("navigationDestination", ["for", nil]), argc: 2))
+        return .view
+    }
+
+    func checkIdentifiable(_ elem: SType, node: some SyntaxProtocol, viewName: String) {        switch elem {
         case .unknown, .int:
             return
         case .named(let tid, _):
@@ -215,6 +400,9 @@ extension Compiler {
     // MARK: - 修饰符
 
     func compileModifierCall(_ base: ExprSyntax, _ name: String, args: [CallArg], node: MemberAccessExprSyntax) -> SType {
+        if name == "sheet" { return compileSheetModifierCall(base, args, node) }
+        if name == "alert" { return compileAlertModifierCall(base, args, node) }
+        if name == "navigationDestination" { return compileNavDestinationModifierCall(base, args, node) }
         guard let sig = modifierSignatures[name] else {
             unsupportedAPI("修饰符 .\(name)(…)", node.declName, "modifier.\(name)")
             emit(.pushVoid)
@@ -258,7 +446,10 @@ extension Compiler {
             }
             if exp == .unknown { exp = nil }
             if a.closure != nil {
+                // .task 同步子集：体内 await 按同步执行
+                if name == "task" { taskSyncDepth &+= 1 }
                 _ = compileClosure(a.closure!, expected: .function([], .void), builder: false)
+                if name == "task" { taskSyncDepth &-= 1 }
             } else if case .function? = exp {
                 _ = compileArgValue(a, expected: exp)
             } else {

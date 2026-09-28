@@ -52,8 +52,13 @@ extension Compiler {
                 } else if t.computedProp(name) != nil {
                     p.steps.append(.member(name))
                     p.type = t.computedProp(name)!.type
-                    p.mutable = false
-                    p.immutableReason = "计算属性 '\(name)' 没有 setter（运行时尚不支持计算属性 setter）"
+                    if programHasComputedSetter(tid: tid, name: name) {
+                        p.mutable = true
+                        p.immutableReason = nil
+                    } else {
+                        p.mutable = false
+                        p.immutableReason = "计算属性 '\(name)' 没有 setter"
+                    }
                 } else {
                     error(.nameResolution, "'\(t.name)' 没有成员 '\(name)'。", m.declName)
                     return nil
@@ -126,8 +131,12 @@ extension Compiler {
         return nil
     }
 
-    func applyFieldMutability(_ p: inout PlaceInfo, _ f: StoredFieldDecl, _ name: String) {
-        if f.wrapper != .none {
+    /// 该计算属性是否有 setter（本编译单元内）。
+    func programHasComputedSetter(tid: Int, name: String) -> Bool {
+        types[tid].computedProp(name)?.setterFunctionID ?? -1 >= 0
+    }
+
+    func applyFieldMutability(_ p: inout PlaceInfo, _ f: StoredFieldDecl, _ name: String) {        if f.wrapper != .none {
             p.throughWrapper = true
             p.mutable = true
             p.immutableReason = nil
@@ -177,8 +186,15 @@ extension Compiler {
         return nil
     }
 
-    func checkMutable(_ p: PlaceInfo, _ node: some SyntaxProtocol, action: String = "修改") {
-        if let v = p.accessViolation { error(.nameResolution, v, node) }
+    /// 该 place 是否为带 didSet 的全局变量（需要走 .place 以便触发观察器，不能用 storeGlobal 快速路径）。
+    func placeNeedsObserverPath(_ p: PlaceInfo) -> Bool {
+        if case .global(let g) = p.root, p.steps.isEmpty {
+            return globals[g].didSetFunctionID >= 0
+        }
+        return false
+    }
+
+    func checkMutable(_ p: PlaceInfo, _ node: some SyntaxProtocol, action: String = "修改") {        if let v = p.accessViolation { error(.nameResolution, v, node) }
         if !p.mutable {
             error(.typeCheck, "不能\(action)：\(p.immutableReason ?? "目标不可变")。", node)
         }
@@ -205,7 +221,7 @@ extension Compiler {
         }
         checkMutable(p, lhs)
         let expected: SType? = p.type.isKnown ? p.type : nil
-        if p.steps.isEmpty && !p.isLazyGlobal {
+        if p.steps.isEmpty && !p.isLazyGlobal && !placeNeedsObserverPath(p) {
             let t = compileExpr(rhs, expected: expected)
             if let expected { checkAssignable(expected, t, rhs) }
             switch p.root {
@@ -232,7 +248,7 @@ extension Compiler {
         let target = p.type
         let expected: SType? = target.isKnown ? target : nil
         var lit = LiteralSide.none
-        if p.steps.isEmpty && !p.isLazyGlobal {
+        if p.steps.isEmpty && !p.isLazyGlobal && !placeNeedsObserverPath(p) {
             switch p.root {
             case .local(let s): emit(.loadLocal(s))
             case .capture(let i): emit(.loadCapture(i))

@@ -13,6 +13,8 @@ enum ValueOps {
         case .array: return "Array"
         case .dict: return "Dictionary"
         case .range: return "Range"
+        case .date: return "Date"
+        case .partialRange: return "PartialRange"
         case .tuple: return "Tuple"
         case .record: return "struct"
         case .enumCase: return "enum"
@@ -168,7 +170,10 @@ enum ValueOps {
         case (.int(let x), .int(let y)): return x == y
         case (.double(let x), .double(let y)): return x == y
         case (.string(let x), .string(let y)): return x == y
-        case (.enumCase(let t1, let i1), .enumCase(let t2, let i2)): return t1 == t2 && i1 == i2
+        case (.enumCase(let t1, let i1, let p1), .enumCase(let t2, let i2, let p2)):
+            guard t1 == t2 && i1 == i2 && p1.count == p2.count else { return false }
+            for i in 0..<p1.count where !(try equals(p1[i], p2[i])) { return false }
+            return true
         case (.symbol(let s), .symbol(let t)): return s == t
         case (.array(let x), .array(let y)):
             guard x.count == y.count else { return false }
@@ -189,6 +194,9 @@ enum ValueOps {
             }
             return true
         case (.range(let x), .range(let y)): return x == y
+        case (.date(let x), .date(let y)): return x == y
+        case (.partialRange(let l1, let u1, let c1), .partialRange(let l2, let u2, let c2)):
+            return l1 == l2 && u1 == u2 && c1 == c2
         case (.int, .double), (.double, .int):
             throw VMError.typeMismatch("'==' 不能比较 Int 与 Double。")
         default:
@@ -200,6 +208,7 @@ enum ValueOps {
         switch (a, b) {
         case (.int(let x), .int(let y)): return x < y
         case (.double(let x), .double(let y)): return x < y
+        case (.date(let x), .date(let y)): return x < y
         case (.string(let x), .string(let y)): return x < y
         case (.tuple(let x), .tuple(let y)) where x.elements.count == y.elements.count:
             for i in 0..<x.elements.count {

@@ -15,6 +15,7 @@ struct FormalParam {
     let type: SType
     let hasDefault: Bool
     let defaultValue: ExprSyntax?
+    var isInout = false
     /// memberwise init：对应的字段索引
     var fieldIndex: Int = -1
 }
@@ -75,7 +76,10 @@ extension Compiler {
     }
 
     func formalParams(_ ps: [ParamSig]) -> [FormalParam] {
-        ps.map { FormalParam(label: $0.label, type: $0.type, hasDefault: $0.defaultValue != nil, defaultValue: $0.defaultValue) }
+        ps.map {
+            FormalParam(label: $0.label, type: $0.type, hasDefault: $0.defaultValue != nil, defaultValue: $0.defaultValue,
+                        isInout: $0.isInout)
+        }
     }
 
     func signatureText(_ base: String, _ ps: [FormalParam]) -> String {
@@ -83,14 +87,30 @@ extension Compiler {
     }
 
     /// 按形参顺序编译实参（缺省的使用默认值表达式）。返回实参类型。
+    /// inout 形参：实参必须是 `&place`，编译为装箱传递，调用后自动写回（copy-in/copy-out）。
+    /// 调用方需在 call 指令后调用 `emitInoutWritebacks`（本函数返回写回信息）。
     @discardableResult
-    func compileMatchedArgs(_ params: [FormalParam], _ mapping: [Int?], _ args: [CallArg]) -> [SType] {
+    func compileMatchedArgs(_ params: [FormalParam], _ mapping: [Int?], _ args: [CallArg]) -> (types: [SType], writebacks: [InoutWriteback]) {
         var types: [SType] = []
+        var writebacks: [InoutWriteback] = []
         for (i, p) in params.enumerated() {
             if let ai = mapping[i] {
-                let t = compileArgValue(args[ai], expected: p.type.isKnown ? p.type : nil)
-                if p.type.isKnown { checkAssignable(p.type, t, args[ai].expr) }
-                types.append(t)
+                if p.isInout {
+                    use("syntax.function.inout")
+                    types.append(compileInoutArg(args[ai], expected: p.type.isKnown ? p.type : nil, writebacks: &writebacks))
+                } else {
+                    if let io = args[ai].expr.as(InOutExprSyntax.self) {
+                        error(.typeCheck, "形参不需要 inout，不能使用 '&' 传递。", io)
+                        _ = compileExpr(io.expression, expected: nil)
+                        emit(.pop)
+                        emit(.pushVoid)
+                        types.append(.unknown)
+                    } else {
+                        let t = compileArgValue(args[ai], expected: p.type.isKnown ? p.type : nil)
+                        if p.type.isKnown { checkAssignable(p.type, t, args[ai].expr) }
+                        types.append(t)
+                    }
+                }
             } else if let d = p.defaultValue {
                 use("syntax.function.defaultArguments")
                 types.append(compileExpr(d, expected: p.type.isKnown ? p.type : nil))
@@ -102,7 +122,56 @@ extension Compiler {
                 types.append(.unknown)
             }
         }
-        return types
+        return (types, writebacks)
+    }
+
+    /// inout 写回信息：调用后把隐藏箱中值存回原 place（键表达式只求值一次，存于隐藏槽）。
+    struct InoutWriteback {
+        var boxSlot: Int
+        var keySlots: [Int]
+        var place: PlaceDesc
+    }
+
+    /// 编译 `&place` 实参：求值 → 装箱 → 留一份箱在栈上作实参，写回信息记入 writebacks。
+    func compileInoutArg(_ a: CallArg, expected: SType?, writebacks: inout [InoutWriteback]) -> SType {
+        guard let io = a.expr.as(InOutExprSyntax.self) else {
+            error(.typeCheck, "inout 形参需要以 '&' 传递实参，例如 `f(&x)`。", a.expr)
+            let t = compileArgValue(a, expected: nil)
+            return t
+        }
+        guard let p = resolvePlace(io.expression) else {
+            error(.typeCheck, "不能对这个表达式做 inout 传递。", io.expression)
+            emit(.pushVoid)
+            return .unknown
+        }
+        checkMutable(p, io.expression, action: "inout 传递")
+        if let expected { checkAssignable(expected, p.type, io.expression) }
+        // 键表达式求值一次，存隐藏槽
+        var keySlots: [Int] = []
+        for (k, kt) in p.keyExprs {
+            compileExpr(k, expected: kt)
+            let s = hiddenLocal()
+            emit(.initLocal(s))
+            keySlots.append(s)
+        }
+        for s in keySlots { emit(.loadLocal(s)) }
+        emit(.place(addPlace(PlaceDesc(root: p.root, steps: p.steps)), .load))
+        emit(.boxTop)
+        emit(.dup)
+        let box = hiddenLocal()
+        emit(.initLocal(box))
+        writebacks.append(InoutWriteback(boxSlot: box, keySlots: keySlots,
+                                         place: PlaceDesc(root: p.root, steps: p.steps)))
+        return expected ?? p.type
+    }
+
+    /// 发射 inout 写回：调用结果留在栈底，依次把各箱中值存回原处。
+    func emitInoutWritebacks(_ writebacks: [InoutWriteback]) {
+        for w in writebacks {
+            for s in w.keySlots { emit(.loadLocal(s)) }
+            emit(.loadLocal(w.boxSlot))
+            emit(.place(addPlace(w.place), .assign))
+        }
     }
 
     func compileArgValue(_ a: CallArg, expected: SType?) -> SType {
@@ -207,13 +276,25 @@ extension Compiler {
             }
             use("syntax.function.argumentLabels")
             let (decl, mapping) = chosen
-            compileMatchedArgs(formalParams(decl.params), mapping, args)
+            let (_, wbs) = compileMatchedArgs(formalParams(decl.params), mapping, args)
             emit(.call(function: decl.functionID, argc: decl.params.count))
+            emitInoutWritebacks(wbs)
             if decl.functionID == fb.id { use("syntax.recursion") }
             return decl.returnType
         }
         // 5. 内建
         if builtinFunctionNames.contains(name) { return compileBuiltinFunction(name, args: args, node: node, expected: expected, call: call) }
+        // Date() 只读时钟（Date.now 走成员访问）
+        if name == "Date", typeByName["Date"] == nil, fb.peek("Date") == nil {
+            use("stdlib.Date")
+            guard args.isEmpty else {
+                error(.typeCheck, "Date 只支持无参构造 Date() 与 Date.now（子集）。", call)
+                emit(.pushVoid)
+                return .unknown
+            }
+            emit(.callBuiltin(name: "Date", labels: []))
+            return .date
+        }
         if ["Int", "Double", "String", "Array", "Dictionary", "CGFloat", "Bool", "Character"].contains(name) {
             return compileConversion(name, args: args, node: node, call: call)
         }
@@ -242,6 +323,9 @@ extension Compiler {
             var score = 0
             for (i, p) in params(d).enumerated() {
                 guard let ai = m[i] else { continue }
+                // `&x` 优先匹配 inout 形参（Swift 重载规则子集）
+                let argIsInout = args[ai].expr.is(InOutExprSyntax.self)
+                if argIsInout == p.isInout { score += 3 } else { score -= 10 }
                 let q = quickType(args[ai].expr)
                 if q.isKnown && p.type.isKnown {
                     if q == p.type || q.unwrapped == p.type.unwrapped { score += 2 } else if !(q == .int && p.type == .double && numericLiteralKind(args[ai].expr) != nil) {
@@ -256,6 +340,30 @@ extension Compiler {
 
     func pickOverload(_ matches: [(FuncDecl, [Int?])], _ args: [CallArg]) -> (FuncDecl, [Int?])? {
         pickOverload(matches, args) { self.formalParams($0.params) }
+    }
+
+    /// 带关联值的 enum 构造：`R.ok(42)` / `.ok(x: 1)`（标签与个数必须匹配，无默认值）。
+    func compileEnumAssociatedConstruct(_ tid: Int, _ caseIndex: Int, args: [CallArg], node: Syntax) -> SType {
+        let t = types[tid]
+        let info = t.cases[caseIndex]
+        use("syntax.enum.associatedValues")
+        let params = info.associated
+        guard args.count == params.count && !args.contains(where: \.isTrailing) else {
+            let form = "." + info.name + "(" + params.map { ($0.label ?? "_") + ":" }.joined() + ")"
+            error(.typeCheck, "case '.\(info.name)' 的关联值不匹配：应为 \(form)。", node)
+            emit(.pushVoid)
+            return .unknown
+        }
+        for (i, a) in args.enumerated() {
+            if a.label != params[i].label {
+                error(.typeCheck, "case '.\(info.name)' 第 \(i + 1) 个关联值的标签应为 '\(params[i].label ?? "_")'。", a.expr)
+            }
+            let exp: SType? = params[i].type.map { resolveType($0, file: fb.fileIndex, selfType: currentSelfTypeID) }
+            let at = compileArgValue(a, expected: exp)
+            if let exp { checkAssignable(exp, at, a.expr) }
+        }
+        emit(.makeEnum(type: tid, caseIndex: caseIndex, count: params.count))
+        return .named(tid, t.name)
     }
 
     // MARK: - 方法调用
@@ -287,8 +395,9 @@ extension Compiler {
         checkMemberVisible(name, of: t, declFile: decl.fileIndex, access: decl.access, node)
         let params = formalParams(decl.params)
         if decl.isStatic {
-            compileMatchedArgs(params, mapping, args)
+            let (_, wbs) = compileMatchedArgs(params, mapping, args)
             emit(.call(function: decl.functionID, argc: params.count))
+            emitInoutWritebacks(wbs)
             return decl.returnType
         }
         if decl.isMutating {
@@ -304,9 +413,15 @@ extension Compiler {
                 return .unknown
             }
             checkMutable(p, node, action: "调用 mutating 方法 '\(name)'")
+            if isComputedMemberCall(receiver: receiver, name) {
+                error(.typeCheck, "尚不支持对计算属性 '\(name)' 调用 mutating 方法（子集限制）：请先读到局部变量再调用。", node)
+                emit(.pushVoid)
+                return .unknown
+            }
             for (k, kt) in p.keyExprs { compileExpr(k, expected: kt) }
-            compileMatchedArgs(params, mapping, args)
+            let (_, wbs) = compileMatchedArgs(params, mapping, args)
             emit(.place(addPlace(PlaceDesc(root: p.root, steps: p.steps)), .callMutating(function: decl.functionID, argc: params.count)))
+            emitInoutWritebacks(wbs)
             return decl.returnType
         }
         switch receiver {
@@ -320,15 +435,35 @@ extension Compiler {
         case .expr(let e): _ = compileChainBase(e)
         case .staticType: break
         }
-        compileMatchedArgs(params, mapping, args)
+        let (_, wbs) = compileMatchedArgs(params, mapping, args)
         emit(.call(function: decl.functionID, argc: params.count + 1))
+        emitInoutWritebacks(wbs)
         if decl.functionID == fb.id { use("syntax.recursion") }
         return decl.returnType
+    }
+
+    /// 接收者是否为带该计算属性的类型（mutating 方法不可直接作用于计算属性）。
+    func isComputedMemberCall(receiver: MethodReceiver, _ name: String) -> Bool {
+        switch receiver {
+        case .implicitSelf:
+            return selfTypeDecl()?.computedProp(name) != nil
+        case .expr(let e):
+            if case .named(let tid, _) = quickType(e) { return types[tid].computedProp(name) != nil }
+            return false
+        case .staticType:
+            return false
+        }
     }
 
     func compileMemberCall(_ m: MemberAccessExprSyntax, args: [CallArg], expected: SType?, call: FunctionCallExprSyntax) -> SType {
         let name = m.declName.baseName.text
         guard let base = m.base else {
+            // 隐式成员调用 `.ok(42)`：目标 enum 类型必须能从上下文推断。
+            if let exp = expected?.unwrapped, case .named(let tid, _) = exp,
+               types[tid].kind == .enumType, let idx = types[tid].caseIndex(name),
+               !types[tid].cases[idx].associated.isEmpty {
+                return compileEnumAssociatedConstruct(tid, idx, args: args, node: Syntax(m))
+            }
             unsupportedAPI("隐式成员调用 .\(name)(…)", m, "syntax.implicitMemberCall")
             emit(.pushVoid)
             return .unknown
@@ -337,6 +472,10 @@ extension Compiler {
             switch tref {
             case .user(let tid):
                 if name == "init" { return compileTypeInit(tid, args: args, node: Syntax(m)) }
+                if types[tid].kind == .enumType, let idx = types[tid].caseIndex(name),
+                   !types[tid].cases[idx].associated.isEmpty {
+                    return compileEnumAssociatedConstruct(tid, idx, args: args, node: Syntax(m))
+                }
                 return compileMethodCallOnType(tid, receiver: .staticType, name, args: args, node: Syntax(m.declName))
             case .builtin(let tn):
                 unsupportedAPI("\(tn).\(name)(…)", m, knownUnsupportedTypes.contains(tn) ? unsupportedNameCapability(tn) : "stdlib.\(tn).\(name)")
@@ -494,8 +633,9 @@ extension Compiler {
         if let (decl, mapping) = pickOverload(matches, args, params: { self.formalParams($0.params) }) {
             checkMemberVisible("init", of: t, declFile: decl.fileIndex, access: decl.access, node)
             let params = formalParams(decl.params)
-            compileMatchedArgs(params, mapping, args)
+            let (_, wbs) = compileMatchedArgs(params, mapping, args)
             emit(.callInit(type: tid, function: decl.functionID, argc: params.count))
+            emitInoutWritebacks(wbs)
             return .named(tid, t.name)
         }
         if !t.hasInitInBody {
@@ -670,6 +810,13 @@ extension Compiler {
             use("stdlib.String.init")
             compileExpr(args[0].expr, expected: .string)
             compileExpr(args[1].expr, expected: .int)
+            emit(.callBuiltin(name: "String", labels: labels))
+            return .string
+        case ("String", let ls) where ls.first == "format" && ls.dropFirst().allSatisfy({ $0 == nil }):
+            // String(format:) 子集：仅 %.Nf（见 stdlib.String.format）
+            use("stdlib.String.format")
+            compileExpr(args[0].expr, expected: .string)
+            for a in args.dropFirst() { compileExpr(a.expr, expected: nil) }
             emit(.callBuiltin(name: "String", labels: labels))
             return .string
         case ("Array", [nil]):

@@ -130,7 +130,37 @@ enum ViewBuiltins {
             }
             if let content = arg("content") { return .view(ViewNode(.list(content: content))) }
         case "NavigationStack", "NavigationView":
-            if let content = arg("content") { return .view(ViewNode(.navigationStack(content: content))) }
+            if let content = arg("content") {
+                if let p = arg("path") {
+                    guard case .binding = p else { throw VMError.typeMismatch("NavigationStack 的 path: 需要 Binding（使用 $path，元素为 [String]）。") }
+                    return .view(ViewNode(.navigationStack(content: content, path: p)))
+                }
+                return .view(ViewNode(.navigationStack(content: content, path: nil)))
+            }
+        case "NavigationLink":
+            // 值导航（B-2：String/Int）与目标闭包导航（destination 按稳定 id 注册）
+            if let dest = arg("destination") {
+                let label: Value
+                if let t = arg(nil) { label = text(try string(t, "NavigationLink 标题")) }
+                else if let l = arg("label") { label = try requireView(vm, l, "NavigationLink label") }
+                else { break }
+                return .view(ViewNode(.navigationLink(destinationKey: "link", value: dest, label: label)))
+            }
+            if let v = arg("value") {
+                let dv = try deref(v)
+                let key: String
+                switch dv {
+                case .string: key = "String"
+                case .int: key = "Int"
+                default:
+                    throw VMError.typeMismatch("NavigationLink 的 value: 只支持 String/Int（实际是 '\(ValueOps.typeName(v))'）。")
+                }
+                let label: Value
+                if let t = arg(nil) { label = text(try string(t, "NavigationLink 标题")) }
+                else if let l = arg("label") { label = try requireView(vm, l, "NavigationLink label") }
+                else { break }
+                return .view(ViewNode(.navigationLink(destinationKey: key, value: dv, label: label)))
+            }
         case "ScrollView":
             guard let content = arg("content") else { break }
             var axes = ScrollAxes.vertical
@@ -145,10 +175,44 @@ enum ViewBuiltins {
             if let content = arg("content") { return .view(ViewNode(.form(content: content))) }
         case "Section":
             guard let content = arg("content") else { break }
-            let header = try arg(nil).map { try string($0, "Section 标题") }
-            return .view(ViewNode(.section(header: header, content: content)))
+            let header = try arg(nil).map { try string($0, "Section 标题") } ?? (try arg("header").map { try string($0, "Section header") })
+            let footer = try arg("footer").map { try string($0, "Section footer") }
+            return .view(ViewNode(.section(header: header, footer: footer, content: content)))
         case "Image":
             if let n = arg("systemName") { return .view(ViewNode(.image(.systemName(try string(n, "systemName"))))) }
+            if let n = arg(nil) { return .view(ViewNode(.image(.resource(try string(n, "Image"))))) }
+        case "Slider":
+            guard let binding = arg("value"), let range = arg("in") else { break }
+            guard case .binding = binding else { throw VMError.typeMismatch("Slider 的 value: 需要 Binding<Double>（使用 $变量）。") }
+            guard case .range(let r) = range, r.closed else {
+                throw VMError.typeMismatch("Slider 的 in: 需要闭区间（如 0...100），实际是 '\(ValueOps.typeName(range))'。")
+            }
+            let step = try arg("step").map { try number($0, "step") }
+            return .view(ViewNode(.slider(binding: binding, lower: Double(r.lower), upper: Double(r.upper), step: step)))
+        case "Stepper":
+            guard let binding = arg("value") else { break }
+            guard case .binding = binding else { throw VMError.typeMismatch("Stepper 的 value: 需要 Binding<Int>（使用 $变量）。") }
+            var lower: Int?, upper: Int?
+            if let range = arg("in") {
+                guard case .range(let r) = range, r.closed else {
+                    throw VMError.typeMismatch("Stepper 的 in: 需要闭区间（如 0...10）。")
+                }
+                lower = r.lower
+                upper = r.upper
+            }
+            let label: Value
+            if let t = arg(nil) { label = text(try string(t, "Stepper 标题")) }
+            else if let l = arg("label") { label = try requireView(vm, l, "Stepper label") }
+            else { break }
+            return .view(ViewNode(.stepper(label: label, binding: binding, lower: lower, upper: upper)))
+        case "Picker":
+            guard let binding = arg("selection"), let content = arg("content") else { break }
+            guard case .binding = binding else { throw VMError.typeMismatch("Picker 的 selection: 需要 Binding（使用 $变量）。") }
+            let label: Value
+            if let t = arg(nil) { label = text(try string(t, "Picker 标题")) }
+            else if let l = arg("label") { label = try requireView(vm, l, "Picker label") }
+            else { break }
+            return .view(ViewNode(.picker(label: label, binding: binding, content: content)))
         case "ProgressView":
             let label = try arg(nil).map { try string($0, "ProgressView 标题") }
             let value = try arg("value").map { try number($0, "value") }
@@ -184,8 +248,34 @@ enum ViewBuiltins {
         return .view(ViewNode(.forEach(data: elems, idPath: idPath, content: content)))
     }
 
-    // MARK: - 修饰符
+    /// `.sheet(isPresented:onDismiss:content:)`（B-3 子集）：isPresented Binding + 内容闭包（+ 可选 onDismiss）。
+    static func sheetModifier(_ recv: Value, labels: [String?], args: [Value]) throws -> Value {
+        func arg(_ label: String?) -> Value? {
+            guard let i = labels.firstIndex(where: { $0 == label }) else { return nil }
+            return args[i]
+        }
+        guard let presented = arg("isPresented"), let content = arg("content") else {
+            throw VMError.typeMismatch(".sheet 需要 isPresented: 与内容闭包，例如 `.sheet(isPresented: $flag) { … }`。")
+        }
+        guard case .binding = presented else { throw VMError.typeMismatch(".sheet 的 isPresented: 需要 Binding<Bool>（使用 $变量）。") }
+        return .view(ViewNode(.modified(recv, .sheet(isPresented: presented, content: content, onDismiss: arg("onDismiss")))))
+    }
 
+    /// `.alert(title:isPresented:actions:message:)`（B-4 子集）：标题 + Binding + 按钮闭包 + 可选消息闭包。
+    static func alertModifier(_ recv: Value, labels: [String?], args: [Value]) throws -> Value {
+        func arg(_ label: String?) -> Value? {
+            guard let i = labels.firstIndex(where: { $0 == label }) else { return nil }
+            return args[i]
+        }
+        guard let title = arg(nil), let presented = arg("isPresented"), let actions = arg("actions") else {
+            throw VMError.typeMismatch(".alert 需要标题、isPresented: 与按钮闭包，例如 `.alert(\"T\", isPresented: $f) { … } message: { … }`。")
+        }
+        guard case .binding = presented else { throw VMError.typeMismatch(".alert 的 isPresented: 需要 Binding<Bool>（使用 $变量）。") }
+        return .view(ViewNode(.modified(recv, .alert(title: try string(title, ".alert 标题"), isPresented: presented,
+                                                actions: actions, message: arg("message")))))
+    }
+
+    // MARK: - 修饰符
     static func modifier(_ vm: VM, _ recv: Value, _ fullName: String, _ args: [Value]) throws -> Value? {
         guard isView(vm, recv) else { return nil }
         let (base, labels) = labels(of: fullName)
@@ -262,6 +352,25 @@ enum ViewBuiltins {
             if let f = arg("perform") { return .view(ViewNode(.modified(recv, .onDisappear(f)))) }
         case "task":
             if let f = arg(nil) { return .view(ViewNode(.modified(recv, .task(f)))) }
+        case "pickerStyle":
+            // 样式透传：segmented/menu/automatic 直接通过（桥接按默认样式渲染，见能力备注）
+            let s = try symbol(args[0], "pickerStyle")
+            guard s == "segmented" || s == "menu" || s == "automatic" else {
+                throw VMError.unsupported("pickerStyle .\(s)（只支持 .segmented/.menu/.automatic）",
+                                          capabilityID: "modifier.pickerStyle")
+            }
+            return recv
+        case "navigationDestination":
+            guard labels == ["for", nil], args.count == 2 else { break }
+            let t = try symbol(args[0], "navigationDestination(for:)")
+            guard t == "String" || t == "Int" else {
+                throw VMError.typeMismatch("navigationDestination(for:) 只支持 String.self / Int.self（实际是 \(t).self）。")
+            }
+            return .view(ViewNode(.modified(recv, .navigationDestination(typeName: t, builder: args[1]))))
+        case "sheet":
+            return try sheetModifier(recv, labels: labels, args: args)
+        case "alert":
+            return try alertModifier(recv, labels: labels, args: args)
         default:
             break
         }
@@ -279,7 +388,9 @@ enum TransferConvert {
         case .double(let d): return .double(d)
         case .string(let s): return .string(s)
         case .array(let a): return .array(try a.map { try toTransfer(vm, $0) })
-        case .enumCase(let t, let i): return .string(vm.program.types[t].caseNames[i])
+        case .enumCase(let t, let i, let p):
+            if !p.isEmpty { throw VMError.typeMismatch("带关联值的 enum 不能传给宿主。") }
+            return .string(vm.program.types[t].caseNames[i])
         case .dict(let d):
             var out: [String: TransferValue] = [:]
             for (i, k) in d.keys.enumerated() {

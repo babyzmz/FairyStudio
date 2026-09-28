@@ -58,6 +58,10 @@ struct RuntimeTypeInfo: Sendable {
     var computed: [String: Int] = [:]
     /// 方法全名（如 `add(_:to:)`）→ 方法信息
     var methods: [String: MethodInfo] = [:]
+    /// 计算属性 setter 名 → setter 函数（(self, newValue) -> Self）
+    var computedSetters: [String: Int] = [:]
+    /// 存储属性名 → didSet 函数（(self, oldValue) -> Void）
+    var didSetFields: [String: Int] = [:]
     var isView = false
     var isApp = false
     var bodyGetter: Int?
@@ -66,6 +70,8 @@ struct RuntimeTypeInfo: Sendable {
     /// 无参 init（rootView 入口构造用）
     var zeroArgInit: Int?
     var caseNames: [String] = []
+    /// 关联值形参标签（与 caseNames 等长；无关联值的 case 为空数组）。
+    var casePayloadLabels: [[String?]] = []
     var rawValues: [RawValueConst]? = nil
     var conformances: Set<String> = []
 }
@@ -76,6 +82,8 @@ struct GlobalInfo: Sendable {
     let type: SType
     /// 惰性初始化函数（非 main.swift 的全局变量、静态存储属性）；nil 表示由脚本顶层代码初始化。
     let initFunction: Int?
+    /// didSet 观察器函数（(oldValue) -> Void）；nil 表示无观察器。
+    let didSetFunction: Int?
 }
 
 /// 编译产物：执行期只使用它，不再引用语法树。

@@ -1,3 +1,4 @@
+import Foundation
 import RuntimeContracts
 
 /// 解释器运行期值。
@@ -13,12 +14,17 @@ enum Value {
     case int(Int)
     case double(Double)
     case string(String)
+    /// 只读日期（VM 确定性要求下允许的时钟读取；无运算，无格式化器）。
+    case date(Date)
     case array([Value])
     case dict(DictValue)
     case range(RangeValue)
+    /// 单侧区间：`2...`（lower）、`..<4` / `...5`（upper）。主要用于数组下标切片。
+    case partialRange(lower: Int?, upper: Int?, closed: Bool)
     case tuple(TupleValue)
     case record(RecordValue)
-    case enumCase(type: Int, index: Int)
+    /// 带关联值的 enum：payload 为空表示无关联值。
+    case enumCase(type: Int, index: Int, payload: [Value])
     case closure(ClosureObject)
     case function(Int)
     case metatype(Int)
@@ -74,7 +80,7 @@ indirect enum HashKey: Hashable {
     case int(Int)
     case double(Double)
     case string(String)
-    case enumCase(Int, Int)
+    case enumCase(Int, Int, [HashKey])
     case tuple([HashKey])
     case array([HashKey])
     case record(Int, [HashKey])
@@ -200,8 +206,9 @@ func hashKey(_ v: Value) throws -> HashKey {
     case .bool(let b): return .bool(b)
     case .int(let i): return .int(i)
     case .double(let d): return .double(d)
+    case .date(let d): return .double(d.timeIntervalSince1970)
     case .string(let s): return .string(s)
-    case .enumCase(let t, let i): return .enumCase(t, i)
+    case .enumCase(let t, let i, let p): return .enumCase(t, i, try p.map { try hashKey($0) })
     case .symbol(let s): return .symbol(s)
     case .tuple(let t): return .tuple(try t.elements.map { try hashKey($0) })
     case .array(let a): return .array(try a.map { try hashKey($0) })

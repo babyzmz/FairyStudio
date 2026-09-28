@@ -32,6 +32,7 @@ struct Describer {
         case .bool(let b): return b ? "true" : "false"
         case .int(let i): return String(i)
         case .double(let d): return d.description
+        case .date(let d): return String(describing: d)
         case .string(let s): return debug ? s.debugDescription : s
         case .array(let a):
             let et = t.elementTypeForDescribe
@@ -47,6 +48,13 @@ struct Describer {
             return "[" + parts.joined(separator: ", ") + "]"
         case .range(let r):
             return "\(r.lower)\(r.closed ? "..." : "..<")\(r.upper)"
+        case .partialRange(let lo, let hi, let closed):
+            // 与 Swift print 输出逐字节一致（差分测试校验）。
+            if let lo, hi == nil { return "PartialRangeFrom<Int>(lowerBound: \(lo))" }
+            if let hi, lo == nil {
+                return closed ? "PartialRangeThrough<Int>(upperBound: \(hi))" : "PartialRangeUpTo<Int>(upperBound: \(hi))"
+            }
+            return "\(lo.map(String.init) ?? "")\(closed ? "..." : "..<")\(hi.map(String.init) ?? "")"
         case .tuple(let tv):
             var ets: [SType] = []
             if case .tuple(let ts, _) = t { ets = ts }
@@ -68,10 +76,18 @@ struct Describer {
             }
             let prefix = debug ? "\(program.moduleName).\(info.name)" : info.name
             return prefix + "(" + parts.joined(separator: ", ") + ")"
-        case .enumCase(let tid, let idx):
+        case .enumCase(let tid, let idx, let payload):
             let info = program.types[tid]
             let name = idx < info.caseNames.count ? info.caseNames[idx] : "?"
-            return debug ? "\(program.moduleName).\(info.name).\(name)" : name
+            if payload.isEmpty { return debug ? "\(program.moduleName).\(info.name).\(name)" : name }
+            let labels = idx < info.casePayloadLabels.count ? info.casePayloadLabels[idx] : []
+            var parts: [String] = []
+            for (i, v) in payload.enumerated() {
+                let s = describe(v, type: nil, debug: true)
+                if i < labels.count, let l = labels[i] { parts.append("\(l): \(s)") } else { parts.append(s) }
+            }
+            let inner = "\(name)(" + parts.joined(separator: ", ") + ")"
+            return debug ? "\(program.moduleName).\(info.name).\(inner)" : inner
         case .closure, .function: return "(Function)"
         case .metatype(let tid): return program.types[tid].name
         case .view: return "View"

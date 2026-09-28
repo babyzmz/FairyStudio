@@ -46,6 +46,8 @@ final class Compiler {
     var fb: FunctionBuilder!
     var nextUID = 0
     var exprDepth = 0
+    /// `.task` 同步子集：闭包体内的 `await` 按同步直接执行（声明侧不支持 async，故 await 只会出现在同步调用上）。
+    var taskSyncDepth = 0
 
     init(source: ProgramSource) { self.source = source }
 
@@ -73,7 +75,8 @@ final class Compiler {
                                 locIndex: [-1, -1], places: [], paramCoercions: [], isMutating: false, isInit: false, fileIndex: 0)
             },
             types: runtimeTypes,
-            globals: globals.map { GlobalInfo(name: $0.name, isLet: $0.isLet, type: $0.type, initFunction: globalInitFunctions[$0.globalID]) },
+            globals: globals.map { GlobalInfo(name: $0.name, isLet: $0.isLet, type: $0.type, initFunction: globalInitFunctions[$0.globalID],
+                                                     didSetFunction: $0.didSetFunctionID >= 0 ? $0.didSetFunctionID : nil) },
             ranges: ranges,
             filePaths: files.map(\.source.path),
             scriptFunction: scriptFunction,

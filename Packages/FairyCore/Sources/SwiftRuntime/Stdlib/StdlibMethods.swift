@@ -43,8 +43,7 @@ extension Stdlib {
         throw VMError.typeMismatch("'\(ValueOps.typeName(recv))' 没有方法 '\(name)'（或运行时尚不支持）。")
     }
 
-    static func stringMethod(_ vm: VM, _ s: String, _ name: String, _ args: [Value]) throws -> Value? {
-        func str(_ i: Int) throws -> String {
+    static func stringMethod(_ vm: VM, _ s: String, _ name: String, _ args: [Value]) throws -> Value? {        func str(_ i: Int) throws -> String {
             guard case .string(let t) = args[i] else { throw VMError.typeMismatch("\(name) 需要 String 参数。") }
             return t
         }
@@ -91,6 +90,57 @@ extension Stdlib {
             return nil
         }
         return nil
+    }
+
+    /// String(format:) 子集：只支持 `%.Nf`（N 位小数）与 `%%`；参数为 Int/Double（转 Double 格式化）。
+    /// 与宿主 `String(format:)` 逐字节一致（含 nan/inf/舍入）；其他占位符报 unsupported。
+    static func stringFormat(_ vm: VM, format: String, args: [Value]) throws -> Value {
+        func unsupported(_ what: String) -> Error {
+            VMError.unsupported("String(format:) 仅支持 %.Nf 与 %%，不支持 \(what)（格式：\(format.debugDescription)）",
+                                capabilityID: "stdlib.String.format")
+        }
+        var out = ""
+        var ai = args.startIndex
+        var i = format.startIndex
+        while i < format.endIndex {
+            guard format[i] == "%" else {
+                out.append(format[i])
+                i = format.index(after: i)
+                continue
+            }
+            i = format.index(after: i)
+            guard i < format.endIndex else { throw unsupported("末尾的 %") }
+            if format[i] == "%" {
+                out.append("%")
+                i = format.index(after: i)
+                continue
+            }
+            guard format[i] == "." else { throw unsupported("'%\(format[i])'") }
+            i = format.index(after: i)
+            var digits = ""
+            while i < format.endIndex, format[i].isNumber {
+                digits.append(format[i])
+                i = format.index(after: i)
+            }
+            guard !digits.isEmpty, Int(digits) != nil, i < format.endIndex, format[i] == "f" else {
+                throw unsupported("'%.' 后非 <位数>f")
+            }
+            i = format.index(after: i)
+            guard ai < args.endIndex else {
+                throw VMError.trap("String(format:) 的实参数量少于格式占位符（格式：\(format.debugDescription)）。")
+            }
+            let v: Double
+            switch args[ai] {
+            case .int(let x): v = Double(x)
+            case .double(let d): v = d
+            default:
+                throw VMError.typeMismatch("String(format:) 的 %.Nf 参数必须是 Int 或 Double，实际是 '\(ValueOps.typeName(args[ai]))'。")
+            }
+            ai += 1
+            out += String(format: "%.\(digits)f", v)
+        }
+        try vm.meter.checkString(out)
+        return .string(out)
     }
 
     static func dictMethod(_ vm: VM, _ d: DictValue, _ name: String, _ args: [Value]) throws -> Value? {
@@ -281,10 +331,16 @@ extension Stdlib {
                     var s = ""
                     for e in a { if case .string(let c) = e { s += c } else { return .string(vm.describer.describe(args[0], type: nil)) } }
                     return .string(s)
+                case .date(let d):
+                    return .string(String(describing: d))
                 default: return .string(vm.describer.describe(args[0], type: nil))
                 }
             }
             if labels == ["describing"] { return .string(vm.describer.describe(args[0], type: nil)) }
+            if labels.first == "format" {
+                guard case .string(let fmt) = args[0] else { throw VMError.typeMismatch("String(format:) 需要格式字符串。") }
+                return try stringFormat(vm, format: fmt, args: Array(args.dropFirst()))
+            }
             if labels == ["repeating", "count"] {
                 guard case .string(let s) = args[0], case .int(let n) = args[1] else { break }
                 guard n >= 0 else { throw VMError.trap("String(repeating:count:) 的次数不能为负（Swift: Negative count not allowed）") }
@@ -294,6 +350,8 @@ extension Stdlib {
                 }
                 return .string(String(repeating: s, count: n))
             }
+        case "Date":
+            if labels.isEmpty || labels == ["now"] { return .date(Date()) }
         case "Array":
             if labels == [nil], let e = try elements(vm, args[0]) { return .array(e) }
             if labels == ["repeating", "count"] {
@@ -366,9 +424,9 @@ extension Stdlib {
             guard case .metatype(let t) = args[0], let raws = vm.program.types[t].rawValues else { break }
             for (i, r) in raws.enumerated() {
                 switch (r, args[1]) {
-                case (.int(let a), .int(let b)) where a == b: return .enumCase(type: t, index: i)
-                case (.string(let a), .string(let b)) where a == b: return .enumCase(type: t, index: i)
-                case (.double(let a), .double(let b)) where a == b: return .enumCase(type: t, index: i)
+                case (.int(let a), .int(let b)) where a == b: return .enumCase(type: t, index: i, payload: [])
+                case (.string(let a), .string(let b)) where a == b: return .enumCase(type: t, index: i, payload: [])
+                case (.double(let a), .double(let b)) where a == b: return .enumCase(type: t, index: i, payload: [])
                 default: continue
                 }
             }

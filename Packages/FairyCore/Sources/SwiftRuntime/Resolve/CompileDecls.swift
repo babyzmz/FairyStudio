@@ -10,8 +10,16 @@ extension Compiler {
         // 2. 类型成员
         for t in types {
             for c in t.computed { compileComputed(c, in: t) }
+            for f in t.fields where f.didSetBody != nil && f.didSetFunctionID >= 0 {
+                compileDidSet(typeID: t.id, fieldType: f.type, oldParam: f.didSetParam, body: f.didSetBody!,
+                              functionID: f.didSetFunctionID, file: f.fileIndex, name: f.name)
+            }
             for m in t.methods { compileFunc(m, inType: t) }
             for i in t.inits { compileInit(i, in: t) }
+        }
+        for g in globals where g.didSetBody != nil && g.didSetFunctionID >= 0 {
+            compileGlobalDidSet(oldParam: g.didSetParam, fieldType: g.type, body: g.didSetBody!,
+                                functionID: g.didSetFunctionID, file: g.fileIndex, name: g.name)
         }
         // 3. 顶层函数（按名称排序，保证确定性）
         for key in funcs.keys.sorted() {
@@ -80,6 +88,56 @@ extension Compiler {
             b.returnType = c.type
             compileFunctionBody(c.body, returnType: c.type, builder: c.isViewBuilder)
         }
+        if let setterBody = c.setterBody, c.setterFunctionID >= 0 {
+            compileComputedSetter(c, setterBody: setterBody, in: t)
+        }
+    }
+
+    /// 计算属性 setter：`(self, newValue) -> Self`，返回 mutation 后的 self（调用方同步 invoke 后写回）。
+    func compileComputedSetter(_ c: ComputedDecl, setterBody: CodeBlockItemListSyntax, in t: TypeDecl) {
+        withFunction(id: c.setterFunctionID, name: "\(t.name).\(c.name).set", file: c.fileIndex, parent: nil) { b in
+            b.staticTypeContext = t.id
+            _ = selfVar(t, mutable: true)
+            _ = declareLocal(c.setterParam, isLet: true, type: c.type)
+            b.paramCount = 2
+            b.paramCoercions = [.none, coercion(for: c.type)]
+            b.returnType = .named(t.id, t.name)
+            b.isMutating = true
+            compileStatements(setterBody)
+            emit(.loadLocal(0))
+            emit(.ret)
+        }
+    }
+
+    /// 存储属性 didSet：`(self, oldValue) -> Self`，返回 mutation 后的 self（调用方同步 invoke 后写回）。
+    func compileDidSet(typeID t: Int, fieldType: SType, oldParam: String?, body: CodeBlockItemListSyntax, functionID: Int,
+                       file: Int, name: String) {
+        withFunction(id: functionID, name: "\(types[t].name).\(name).didSet", file: file, parent: nil) { b in
+            b.staticTypeContext = t
+            _ = selfVar(types[t], mutable: true)
+            _ = declareLocal(oldParam ?? "oldValue", isLet: true, type: fieldType)
+            b.paramCount = 2
+            b.paramCoercions = [.none, coercion(for: fieldType)]
+            b.returnType = .named(t, types[t].name)
+            b.isMutating = true
+            compileStatements(body)
+            emit(.loadLocal(0))
+            emit(.ret)
+        }
+    }
+
+    /// 全局变量 / static 存储属性 didSet：`(oldValue) -> Void`（全局读写直达存储，无 self 拷贝问题）。
+    func compileGlobalDidSet(oldParam: String?, fieldType: SType, body: CodeBlockItemListSyntax, functionID: Int, file: Int,
+                             name: String) {
+        withFunction(id: functionID, name: "\(name).didSet", file: file, parent: nil) { b in
+            _ = declareLocal(oldParam ?? "oldValue", isLet: true, type: fieldType)
+            b.paramCount = 1
+            b.paramCoercions = [coercion(for: fieldType)]
+            b.returnType = .void
+            compileStatements(body)
+            emit(.pushVoid)
+            emit(.ret)
+        }
     }
 
     func compileFunc(_ fn: FuncDecl, inType t: TypeDecl?) {
@@ -94,7 +152,8 @@ extension Compiler {
                 coercions.append(.none)
             }
             for p in fn.params {
-                _ = declareLocal(p.name, isLet: true, type: p.type)
+                // inout 形参在函数体内可赋值（调用方装箱传入，写穿回原处）
+                _ = declareLocal(p.name, isLet: !p.isInout, type: p.type)
                 coercions.append(coercion(for: p.type))
             }
             b.paramCount = coercions.count
@@ -112,7 +171,7 @@ extension Compiler {
             _ = selfVar(t, mutable: true)
             var coercions: [ParamCoercion] = [.none]
             for p in i.params {
-                _ = declareLocal(p.name, isLet: true, type: p.type)
+                _ = declareLocal(p.name, isLet: !p.isInout, type: p.type)
                 coercions.append(coercion(for: p.type))
             }
             b.paramCount = coercions.count
@@ -179,6 +238,10 @@ extension Compiler {
 
     func compileTopLevelVar(_ v: VariableDeclSyntax) {
         for binding in v.bindings {
+            if let tp = binding.pattern.as(TuplePatternSyntax.self) {
+                compileTopLevelTuple(tp, binding: binding)
+                continue
+            }
             guard let ident = binding.pattern.as(IdentifierPatternSyntax.self),
                   let gid = globalByName[ident.identifier.text] else { continue }
             let g = globals[gid]
@@ -191,6 +254,30 @@ extension Compiler {
                 emit(.pushNil)
                 emit(.storeGlobal(gid))
             }
+        }
+    }
+
+    /// 顶层 `let (a, b) = …`：求值一次，按顺序存入各元素全局变量（索引期已登记）。
+    func compileTopLevelTuple(_ tp: TuplePatternSyntax, binding: PatternBindingSyntax) {
+        use("syntax.tuplePattern")
+        let elems = Array(tp.elements)
+        guard let initExpr = binding.initializer?.value else { return }
+        let annotated: SType? = binding.typeAnnotation.map { resolveType($0.type, file: fb.fileIndex, selfType: currentSelfTypeID) }
+        let t = compileExpr(initExpr, expected: annotated)
+        if t.isKnown, !( { if case .tuple(let ts, _) = t { return ts.count == elems.count }; return false }() ) {
+            error(.typeCheck, "解构声明的初始值应为 \(elems.count) 元组，得到 '\(t)'。", initExpr)
+        }
+        emit(.destructure(elems.count))
+        var gids: [Int?] = []
+        for el in elems {
+            if let id = el.pattern.as(IdentifierPatternSyntax.self), let gid = globalByName[id.identifier.text] {
+                gids.append(gid)
+            } else {
+                gids.append(nil)
+            }
+        }
+        for gid in gids.reversed() {
+            if let gid { emit(.storeGlobal(gid)) } else { emit(.pop) }
         }
     }
 

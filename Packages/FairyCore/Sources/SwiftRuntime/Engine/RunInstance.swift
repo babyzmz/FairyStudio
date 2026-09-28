@@ -263,6 +263,18 @@ actor RunInstance {
         do {
             switch envelope.input {
             case .action(let aid):
+                // sheet 关闭（B-3）：先写 false，再跑 onDismiss
+                if let d = evaluator.dismissActions[aid.rawValue] {
+                    try d.binding.set(.bool(false))
+                    if let od = d.onDismiss { _ = try evaluator.vm.invoke(od, []) }
+                    break
+                }
+                // alert 按钮（B-4）：用户动作跑完后自动关闭
+                if let ab = evaluator.alertButtonActions[aid.rawValue] {
+                    if let f = evaluator.actions[ab.action.rawValue] { _ = try evaluator.vm.invoke(f, []) }
+                    try ab.binding.set(.bool(false))
+                    break
+                }
                 guard let f = evaluator.actions[aid.rawValue] else { return }
                 _ = try evaluator.vm.invoke(f, [])
             case .setBinding(let bid, let value):
@@ -280,7 +292,15 @@ actor RunInstance {
                 lifecycleCounts.disappear += 1
                 appearedNodes.remove(nid.rawValue)
                 return
-            case .navigationPop, .navigationPush, .dismissSheet, .capabilityResponse:
+            case .navigationPush(let did):
+                // B-2：未知 id 忽略（宿主只应发送当前树中的链接 id）
+                if try !evaluator.pushNav(did) { return }
+            case .navigationPop(let count):
+                if try evaluator.popNav(count: count) == 0 { return }
+            case .dismissSheet:
+                // B-3：宿主强制关闭（停止/切换项目）：全部置 false，不触发 onDismiss
+                try evaluator.dismissAllSheets()
+            case .capabilityResponse:
                 return   // M0 未实现的输入：忽略
             }
             if store?.dirty == true { try renderAndEmit() }

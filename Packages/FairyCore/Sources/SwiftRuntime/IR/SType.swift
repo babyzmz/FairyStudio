@@ -12,10 +12,14 @@ indirect enum SType: Hashable, Sendable, CustomStringConvertible {
     case double
     case bool
     case string
+    /// 只读日期（Date() / Date.now；description 与打印透传宿主格式）。
+    case date
     case array(SType)
     case dict(SType, SType)
     case optional(SType)
     case range(closed: Bool)
+    /// 单侧区间：lower 为 true 是 `Int...`（PartialRangeFrom），否则 `..<Int` / `...Int`（closed 区分）。
+    case partialRange(lower: Bool, closed: Bool)
     case tuple([SType], [String?])
     /// 用户定义的 struct / enum：类型索引 + 名称（名称仅用于消息）。
     case named(Int, String)
@@ -39,10 +43,14 @@ indirect enum SType: Hashable, Sendable, CustomStringConvertible {
         case .double: return "Double"
         case .bool: return "Bool"
         case .string: return "String"
+        case .date: return "Date"
         case .array(let e): return "[\(e)]"
         case .dict(let k, let v): return "[\(k): \(v)]"
         case .optional(let w): return "\(w)?"
         case .range(let closed): return closed ? "ClosedRange<Int>" : "Range<Int>"
+        case .partialRange(let lower, let closed):
+            if lower { return "PartialRangeFrom<Int>" }
+            return closed ? "PartialRangeThrough<Int>" : "PartialRangeUpTo<Int>"
         case .tuple(let ts, let ls):
             return "(" + zip(ts, ls).map { t, l in l.map { "\($0): \(t)" } ?? "\(t)" }.joined(separator: ", ") + ")"
         case .named(_, let n): return n
@@ -58,6 +66,12 @@ indirect enum SType: Hashable, Sendable, CustomStringConvertible {
 
     var isKnown: Bool { if case .unknown = self { return false }; return true }
     var isNumeric: Bool { self == .int || self == .double }
+    /// 是否为区间类型（含单侧）。
+    var isRange: Bool {
+        if case .range = self { return true }
+        if case .partialRange = self { return true }
+        return false
+    }
 
     /// 去掉一层 Optional。
     var unwrapped: SType { if case .optional(let w) = self { return w }; return self }

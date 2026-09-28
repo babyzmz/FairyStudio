@@ -88,6 +88,10 @@ enum Instr: Sendable, Hashable {
     case pushFunction(Int)
     case pushMetatype(Int)
     case pushEnum(type: Int, caseIndex: Int)
+    /// 由栈顶 count 个关联值构造带 payload 的 enum（保持源码顺序）。
+    case makeEnum(type: Int, caseIndex: Int, count: Int)
+    /// 把栈顶 enum 的第 index 个关联值压栈（模式匹配绑定用；case 不符时为受控 trap）。
+    case enumPayload(index: Int)
 
     // 栈操作
     case pop
@@ -151,6 +155,10 @@ enum Instr: Sendable, Hashable {
     case makeArray(Int)
     case makeDict(Int)
     case makeTuple([String?])
+    /// 由栈顶界构造单侧区间：fromLower 为 true 表示栈顶是下界（`2...`），否则是上界（`..<4` / `...5`）。
+    case makePartialRange(fromLower: Bool, closed: Bool)
+    /// 把栈顶值装箱（inout 实参传址用；调用方在返回后拆箱写回）。
+    case boxTop
     /// 由 n 个字段值直接构造记录（默认值函数使用）
     case makeRecord(type: Int, count: Int)
 

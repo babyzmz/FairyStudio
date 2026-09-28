@@ -42,6 +42,9 @@ final class VM {
     private var globalState: [UInt8]   // 0 未初始化，1 初始化中，2 就绪
     var hostDepth = 0
     let maxHostDepth = 160
+    /// didSet 触发抑制栈：(typeID, fieldIndex)，全局变量用 (-1, globalID)。
+    /// didSet 体内对同一属性的赋值只改值、不再触发（与 Swift 一致，避免钳制写法无限递归）。
+    var observerSuppression: [(Int, Int)] = []
     lazy var describer: Describer = Describer(program: program, custom: { [unowned self] v in self.customDescription(v) })
     /// print 输出。
     var console: (ConsoleStream, String) -> Void = { _, _ in }
@@ -60,7 +63,7 @@ final class VM {
         let t: Int
         switch v {
         case .record(let r): t = r.type
-        case .enumCase(let tt, _): t = tt
+        case .enumCase(let tt, _, _): t = tt
         default: return nil
         }
         let info = program.types[t]
@@ -249,7 +252,13 @@ final class VM {
                 case .pushKeyPath(let p): stack.append(.keyPath(p))
                 case .pushFunction(let f): stack.append(.function(f))
                 case .pushMetatype(let t): stack.append(.metatype(t))
-                case .pushEnum(let t, let i): stack.append(.enumCase(type: t, index: i))
+                case .pushEnum(let t, let i): stack.append(.enumCase(type: t, index: i, payload: []))
+                case .makeEnum(let t, let i, let n):
+                    stack.append(.enumCase(type: t, index: i, payload: popN(n)))
+                case .enumPayload(let i):
+                    // 模式匹配绑定的辅助指令：case 不符或无此 payload 时压 nil（调用方只在命中分支使用值）。
+                    let v = stack.removeLast()
+                    if case .enumCase(_, _, let p) = v, i < p.count { stack.append(p[i]) } else { stack.append(.none) }
                 case .pop: stack.removeLast()
                 case .dup: stack.append(stack[stack.count - 1])
                 case .swap: stack.swapAt(stack.count - 1, stack.count - 2)
@@ -371,14 +380,14 @@ final class VM {
                 case .matchEnumCase(let t, let i):
                     let v = stack.removeLast()
                     switch v {
-                    case .enumCase(let vt, let vi): stack.append(.bool(vt == t && vi == i))
+                    case .enumCase(let vt, let vi, _): stack.append(.bool(vt == t && vi == i))
                     case .symbol(let s): stack.append(.bool(program.types[t].caseNames[i] == s))
                     default: stack.append(.bool(false))
                     }
                 case .matchSymbolCase(let name):
                     let v = stack.removeLast()
                     switch v {
-                    case .enumCase(let vt, let vi): stack.append(.bool(program.types[vt].caseNames[vi] == name))
+                    case .enumCase(let vt, let vi, _): stack.append(.bool(program.types[vt].caseNames[vi] == name))
                     case .symbol(let s): stack.append(.bool(s == name))
                     default: stack.append(.bool(false))
                     }
@@ -521,6 +530,16 @@ final class VM {
                 case .makeTuple(let labels):
                     let elems = popN(labels.count)
                     stack.append(.tuple(TupleValue(elements: elems, labels: labels)))
+                case .boxTop:
+                    stack.append(.box(Box(stack.removeLast())))
+                case .makePartialRange(let fromLower, let closed):
+                    let b = stack.removeLast()
+                    guard case .int(let x) = b else {
+                        throw VMError.typeMismatch("区间界必须是 Int，实际是 '\(ValueOps.typeName(b))'。")
+                    }
+                    if fromLower { stack.append(.partialRange(lower: x, upper: nil, closed: closed)) } else {
+                        stack.append(.partialRange(lower: nil, upper: x, closed: closed))
+                    }
                 case .makeViewGroup(let n):
                     let views = popN(n)
                     if n == 1 { stack.append(views[0]) } else {
@@ -569,7 +588,7 @@ final class VM {
     func computedGetter(_ v: Value, _ name: String) -> Int? {
         switch v {
         case .record(let r): return program.types[r.type].computed[name]
-        case .enumCase(let t, _): return program.types[t].computed[name]
+        case .enumCase(let t, _, _): return program.types[t].computed[name]
         default: return nil
         }
     }
@@ -595,7 +614,7 @@ final class VM {
                 try pushFrame(program.functions[m.function], argc: argc + 1, closure: nil, dropBelow: 0, onReturn: .push)
                 return true
             }
-        case .enumCase(let t, _):
+        case .enumCase(let t, _, _):
             if let m = program.types[t].methods[name], !m.isStatic {
                 try pushFrame(program.functions[m.function], argc: argc + 1, closure: nil, dropBelow: 0, onReturn: .push)
                 return true
@@ -628,6 +647,7 @@ enum NestingProbe {
             case .array(let a): guard let f = a.first else { return false }; cur = f
             case .tuple(let t): guard let f = t.elements.first else { return false }; cur = f
             case .record(let r): guard let f = r.fields.first else { return false }; cur = f
+            case .enumCase(_, _, let p): guard let f = p.first else { return false }; cur = f
             case .dict(let d): guard let f = d.values.first else { return false }; cur = f
             case .box(let b): cur = b.value
             case .stateCell(let c): cur = c.value
@@ -654,6 +674,7 @@ struct HeapEstimator {
         case .dict(let d): addCollection(d.keys, depth: depth); addCollection(d.values, depth: depth)
         case .tuple(let t): for e in t.elements { add(e, depth: depth + 1) }
         case .record(let r): for f in r.fields { add(f, depth: depth + 1) }
+        case .enumCase(_, _, let p): for e in p { add(e, depth: depth + 1) }
         case .box(let b):
             if seen.insert(ObjectIdentifier(b)).inserted { add(b.value, depth: depth + 1) }
         case .closure(let c):

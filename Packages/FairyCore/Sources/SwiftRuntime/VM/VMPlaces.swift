@@ -39,7 +39,11 @@ enum PlaceOps {
                 let info = program.types[rec.type]
                 guard let i = info.fieldIndex[name] else {
                     if info.computed[name] != nil {
-                        throw VMError.unsupported("给计算属性 '\(name)' 赋值（计算属性 setter）", capabilityID: "syntax.struct.computedSetter")
+                        if info.computedSetters[name] != nil {
+                            throw VMError.unsupported("对计算属性 '\(name)' 的嵌套路径修改（子集限制：只支持整体赋值）",
+                                                      capabilityID: "syntax.struct.computedSetter")
+                        }
+                        throw VMError.unsupported("给没有 setter 的计算属性 '\(name)' 赋值", capabilityID: "syntax.struct.computedSetter")
                     }
                     throw VMError.typeMismatch("'\(info.name)' 没有可赋值的属性 '\(name)'。")
                 }
@@ -257,8 +261,7 @@ extension VM {
 
     /// 执行左值指令。返回 true 表示压入了新帧（调用了用户方法）。
     /// 路径中含可选链且遇到 nil 时，整个操作跳过（有结果的操作压入 nil）。
-    func execPlace(_ desc: PlaceDesc, op: PlaceOp, frameIndex fi: Int) throws -> Bool {
-        let stackMark = stack.count
+    func execPlace(_ desc: PlaceDesc, op: PlaceOp, frameIndex fi: Int) throws -> Bool {        let stackMark = stack.count
         do {
             return try execPlaceInner(desc, op: op, frameIndex: fi)
         } catch is OptionalChainNil {
@@ -288,20 +291,28 @@ extension VM {
         }
         let keys = popN(desc.keyCount)
         let steps = concreteSteps(desc.steps, keys: keys)
+        // 计算属性（最后一步是 .member 且接收者有对应计算属性）：走 getter/setter，不走原地修改
+        if case .member = steps.last, let c = try computedTarget(root: desc.root, steps: steps, frameIndex: fi) {
+            return try execComputed(desc: desc, target: c, op: op, operands: operands, frameIndex: fi)
+        }
         switch op {
         case .assign:
             let v = operands[0]
+            let fires = try collectObservers(root: desc.root, steps: steps, frameIndex: fi)
             try modifyRoot(desc.root, frameIndex: fi, steps) { $0 = v }
+            try fireObservers(fires, root: desc.root, frameIndex: fi)
             return false
         case .compound(let bop, let lit):
             let rhs = operands[0]
             let meter = self.meter
+            let fires = try collectObservers(root: desc.root, steps: steps, frameIndex: fi)
             try modifyRoot(desc.root, frameIndex: fi, steps) { v in
                 let r = try ValueOps.binary(bop, v, rhs, literal: lit)
                 if case .string(let s) = r { try meter.checkString(s) }
                 if case .array(let a) = r { try meter.checkCollection(a.count) }
                 v = r
             }
+            try fireObservers(fires, root: desc.root, frameIndex: fi)
             return false
         case .load:
             push(try readRoot(desc.root, frameIndex: fi, steps))
@@ -317,11 +328,12 @@ extension VM {
                           onReturn: .writeBack(desc.root, steps))
             return true
         case .callMethod(let name, _):
+            // 计算属性不可能走到这里（上游已拦截）；didSet 字段的 builtin mutating 需要触发观察器
             let recv = try readRoot(desc.root, frameIndex: fi, steps)
             var typeID: Int?
             switch recv {
             case .record(let r): typeID = r.type
-            case .enumCase(let t, _): typeID = t
+            case .enumCase(let t, _, _): typeID = t
             default: break
             }
             if let t = typeID, let m = program.types[t].methods[name], !m.isStatic {
@@ -339,6 +351,7 @@ extension VM {
                 return true
             }
             if Stdlib.isMutatingMethod(name, receiver: recv) {
+                let fires = try collectObservers(root: desc.root, steps: steps, frameIndex: fi)
                 if Stdlib.mutatingNeedsCallback(name) {
                     var value = try takeRoot(desc.root, frameIndex: fi, steps)
                     let r: Value
@@ -349,18 +362,210 @@ extension VM {
                         throw error
                     }
                     try writePlace(root: desc.root, steps: steps, frameIndex: fi, value: value)
+                    try fireObservers(fires, root: desc.root, frameIndex: fi)
                     push(r)
                 } else {
                     let meter = self.meter
                     let r = try modifyRoot(desc.root, frameIndex: fi, steps) { v in
                         try Stdlib.callMutating(nil, &v, name, operands, meter: meter)
                     }
+                    try fireObservers(fires, root: desc.root, frameIndex: fi)
                     push(r)
                 }
                 return false
             }
             push(try Stdlib.callMethod(self, recv, name, operands))
             return false
+        }
+    }
+
+    // MARK: - 计算属性与 didSet
+
+    /// 计算属性目标：steps 最后一步是 .member(name) 且拥有者是带该计算属性的记录/enum。
+    /// 无 setter 的读取也走这里（getter）；写入由调用方校验 setter 存在性。
+    struct ComputedTarget {
+        var ownerSteps: [ConcreteStep]
+        var typeID: Int
+        var name: String
+        var getter: Int?
+        var setter: Int?
+    }
+
+    func computedTarget(root: PlaceRoot, steps: [ConcreteStep], frameIndex fi: Int) throws -> ComputedTarget? {
+        guard let last = steps.last, case .member(let name) = last else { return nil }
+        let ownerSteps = Array(steps.dropLast())
+        let owner: Value
+        do {
+            owner = try readRoot(root, frameIndex: fi, ownerSteps)
+        } catch is OptionalChainNil {
+            throw OptionalChainNil()
+        } catch {
+            return nil
+        }
+        let tid: Int
+        switch owner {
+        case .record(let r): tid = r.type
+        case .enumCase(let t, _, _): tid = t
+        default: return nil
+        }
+        let info = program.types[tid]
+        guard info.computed[name] != nil || info.computedSetters[name] != nil else { return nil }
+        return ComputedTarget(ownerSteps: ownerSteps, typeID: tid, name: name,
+                              getter: info.computed[name], setter: info.computedSetters[name])
+    }
+
+    /// 计算属性的读/写/复合/方法调用（同步 invoke getter/setter；user mutating 方法不支持）。
+    func execComputed(desc: PlaceDesc, target c: ComputedTarget, op: PlaceOp, operands: [Value], frameIndex fi: Int) throws -> Bool {
+        switch op {
+        case .load:
+            guard let getter = c.getter else { throw VMError.typeMismatch("计算属性 '\(c.name)' 不可读。") }
+            let recv = try readRoot(desc.root, frameIndex: fi, c.ownerSteps)
+            push(try invokeFunction(getter, [recv]))
+            return false
+        case .assign:
+            guard let setter = c.setter else {
+                throw VMError.unsupported("给没有 setter 的计算属性 '\(c.name)' 赋值", capabilityID: "syntax.struct.computedSetter")
+            }
+            let recv = try readRoot(desc.root, frameIndex: fi, c.ownerSteps)
+            let newRecv = try invokeFunction(setter, [recv, operands[0]])
+            // setter 返回 mutation 后的 self（源代码层 return 除外，此时跳过写回）
+            if case .record(let nr) = newRecv, nr.type == c.typeID {
+                try writePlace(root: desc.root, steps: c.ownerSteps, frameIndex: fi, value: .record(nr))
+            }
+            return false
+        case .compound(let bop, let lit):
+            guard let getter = c.getter, let setter = c.setter else {
+                throw VMError.unsupported("计算属性 '\(c.name)' 需要 get/set 才能复合赋值", capabilityID: "syntax.struct.computedSetter")
+            }
+            let recv = try readRoot(desc.root, frameIndex: fi, c.ownerSteps)
+            let cur = try invokeFunction(getter, [recv])
+            let r = try ValueOps.binary(bop, cur, operands[0], literal: lit)
+            if case .string(let s) = r { try meter.checkString(s) }
+            if case .array(let a) = r { try meter.checkCollection(a.count) }
+            let newRecv = try invokeFunction(setter, [recv, r])
+            if case .record(let nr) = newRecv, nr.type == c.typeID {
+                try writePlace(root: desc.root, steps: c.ownerSteps, frameIndex: fi, value: .record(nr))
+            }
+            return false
+        case .callMutating:
+            throw VMError.typeMismatch("尚不支持对计算属性 '\(c.name)' 调用 mutating 方法（子集限制）：请先读到局部变量再调用。")
+        case .callMethod(let name, _):
+            guard let getter = c.getter else { throw VMError.typeMismatch("计算属性 '\(c.name)' 不可读。") }
+            let recv = try readRoot(desc.root, frameIndex: fi, c.ownerSteps)
+            let cur = try invokeFunction(getter, [recv])
+            // 用户自定义方法（非 mutating 可直接调用；mutating 不支持）
+            switch cur {
+            case .record(let r):
+                if let m = program.types[r.type].methods[name], !m.isStatic {
+                    if m.isMutating {
+                        throw VMError.typeMismatch("尚不支持对计算属性 '\(c.name)' 调用 mutating 方法 '\(name)'（子集限制）。")
+                    }
+                    push(cur)
+                    stack.append(contentsOf: operands)
+                    try pushFrame(program.functions[m.function], argc: operands.count + 1, closure: nil, dropBelow: 0,
+                                  onReturn: .push)
+                    return true
+                }
+            case .enumCase(let t, _, _):
+                if let m = program.types[t].methods[name], !m.isStatic {
+                    if m.isMutating {
+                        throw VMError.typeMismatch("尚不支持对计算属性 '\(c.name)' 调用 mutating 方法 '\(name)'（子集限制）。")
+                    }
+                    push(cur)
+                    stack.append(contentsOf: operands)
+                    try pushFrame(program.functions[m.function], argc: operands.count + 1, closure: nil, dropBelow: 0,
+                                  onReturn: .push)
+                    return true
+                }
+            default:
+                break
+            }
+            if Stdlib.isMutatingMethod(name, receiver: cur) {
+                guard let setter = c.setter else {
+                    throw VMError.unsupported("计算属性 '\(c.name)' 需要 setter 才能调用 mutating 方法",
+                                              capabilityID: "syntax.struct.computedSetter")
+                }
+                var value = cur
+                let r: Value
+                if Stdlib.mutatingNeedsCallback(name) {
+                    r = try Stdlib.callMutating(self, &value, name, operands)
+                } else {
+                    r = try Stdlib.callMutating(nil, &value, name, operands, meter: meter)
+                }
+                let newRecv = try invokeFunction(setter, [recv, value])
+                if case .record(let nr) = newRecv, nr.type == c.typeID {
+                    try writePlace(root: desc.root, steps: c.ownerSteps, frameIndex: fi, value: .record(nr))
+                }
+                push(r)
+                return false
+            }
+            push(try Stdlib.callMethod(self, cur, name, operands))
+            return false
+        case .projectBinding:
+            throw VMError.typeMismatch("'$' 不能用于计算属性 '\(c.name)'（子集限制）。")
+        }
+    }
+
+    /// didSet 触发计划：赋值前收集，赋值后触发（由内向外）。
+    struct ObserverFire {
+        /// 拥有该字段的拥有者路径（全局变量为空）
+        var ownerSteps: [ConcreteStep]
+        var typeID: Int
+        /// 字段索引；全局变量时为 globalID（typeID 为 -1）
+        var field: Int
+        var fn: Int
+        var old: Value
+    }
+
+    /// 收集此次写入涉及的 didSet（init 内、被抑制的不收集；无观察器时返回空数组）。
+    func collectObservers(root: PlaceRoot, steps: [ConcreteStep], frameIndex fi: Int) throws -> [ObserverFire] {
+        if frames[fi].function.isInit { return [] }
+        if case .global(let g) = root, steps.isEmpty {
+            guard let fn = program.globals[g].didSetFunction else { return [] }
+            if observerSuppression.contains(where: { $0 == (-1, g) }) { return [] }
+            return [ObserverFire(ownerSteps: [], typeID: -1, field: g, fn: fn, old: try rawRoot(root, frameIndex: fi))]
+        }
+        var out: [ObserverFire] = []
+        var cur = try rawRoot(root, frameIndex: fi)
+        var prefix: [ConcreteStep] = []
+        for step in steps {
+            if case .field(let i) = step {
+                if case .record(let r) = (try? deref(cur)) ?? .void {
+                    let info = program.types[r.type]
+                    if i < info.fieldNames.count, let fn = info.didSetFields[info.fieldNames[i]] {
+                        let old = (try? deref(r.fields[i])) ?? .void
+                        out.append(ObserverFire(ownerSteps: prefix, typeID: r.type, field: i, fn: fn, old: old))
+                    }
+                }
+            }
+            guard let next = try? PlaceOps.read(program, cur, [step][...]) else { break }
+            cur = next
+            prefix.append(step)
+        }
+        return out
+    }
+
+    /// 触发 didSet（由内向外；同一属性在自身体内赋值时被抑制，只改值不触发）。
+    func fireObservers(_ fires: [ObserverFire], root: PlaceRoot, frameIndex fi: Int) throws {
+        for f in fires.reversed() {
+            let key = (f.typeID, f.field)
+            if observerSuppression.contains(where: { $0 == key }) { continue }
+            observerSuppression.append(key)
+            do {
+                if f.typeID == -1 {
+                    _ = try invokeFunction(f.fn, [f.old])
+                } else {
+                    let ownerPost = try readRoot(root, frameIndex: fi, f.ownerSteps)
+                    let result = try invokeFunction(f.fn, [ownerPost, f.old])
+                    if case .record(let nr) = result, nr.type == f.typeID {
+                        try writePlace(root: root, steps: f.ownerSteps, frameIndex: fi, value: .record(nr))
+                    }
+                }
+                observerSuppression.removeLast()
+            } catch {
+                observerSuppression.removeLast()
+                throw error
+            }
         }
     }
 }

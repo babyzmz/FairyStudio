@@ -7,19 +7,20 @@ let builtinTypeNames: Set<String> = [
     "Int", "Double", "Bool", "String", "Array", "Dictionary", "Optional", "Character", "CGFloat", "Void", "Never",
     "Range", "ClosedRange", "Binding", "State",
     "View", "App", "Scene", "WindowGroup", "Color", "Font", "Text", "Button", "VStack", "HStack", "ZStack", "Spacer", "Divider",
-    "TextField", "SecureField", "Toggle", "ForEach", "List", "NavigationStack", "NavigationView", "ScrollView", "Group",
+    "TextField", "SecureField", "Toggle", "Slider", "Stepper", "Picker", "ForEach", "List", "NavigationStack", "NavigationView",
+    "NavigationLink", "ScrollView", "Group",
     "Form", "Section", "Image", "ProgressView", "EmptyView",
 ]
 
 /// 合法的 Swift / Foundation / SwiftUI 类型或视图，但运行时尚未支持（产生 unsupportedAPI 诊断而不是"找不到"）。
 let knownUnsupportedTypes: Set<String> = [
     "Float", "Float32", "Float64", "Int8", "Int16", "Int32", "Int64", "UInt", "UInt8", "UInt16", "UInt32", "UInt64",
-    "Set", "Date", "UUID", "URL", "Data", "Timer", "DispatchQueue", "Task", "Substring", "AttributedString", "Calendar",
+    "Set", "UUID", "URL", "Data", "Timer", "DispatchQueue", "Task", "Substring", "AttributedString", "Calendar",
     "DateFormatter", "NumberFormatter", "Locale", "FileManager", "Bundle", "ProcessInfo", "Thread", "UserDefaults",
     "NotificationCenter", "JSONEncoder", "JSONDecoder", "ObservableObject", "AnyView", "Result", "Error",
-    "Slider", "Stepper", "Picker", "DatePicker", "ColorPicker", "Label", "Link", "Menu", "TabView", "LazyVStack", "LazyHStack",
+    "DatePicker", "ColorPicker", "Label", "Link", "Menu", "TabView", "LazyVStack", "LazyHStack",
     "LazyVGrid", "LazyHGrid", "Grid", "GridRow", "GridItem", "GeometryReader", "Circle", "Rectangle", "RoundedRectangle", "Capsule",
-    "Ellipse", "Path", "Canvas", "TimelineView", "AsyncImage", "TextEditor", "Gauge", "ShareLink", "NavigationLink",
+    "Ellipse", "Path", "Canvas", "TimelineView", "AsyncImage", "TextEditor", "Gauge", "ShareLink",
     "NavigationSplitView", "Alert", "ActionSheet", "LinearGradient", "RadialGradient", "AngularGradient", "ToolbarItem",
     "EditButton", "ControlGroup", "DisclosureGroup", "OutlineGroup", "Table", "ContentUnavailableView", "ViewThatFits",
     "Settings", "DocumentGroup", "Animation", "Angle", "CGSize", "CGPoint", "CGRect", "UIColor", "NSColor",
@@ -38,6 +39,7 @@ let builtinFunctionNames: Set<String> = [
 /// 视图构造参数种类。
 enum ViewParamKind {
     case string, number, bool, symbol, binding, keyPath, data
+    case range         // 区间（Slider/Stepper 的 in:，Int 闭区间）
     case view        // 内联 @ViewBuilder 内容
     case action      // () -> Void 闭包
     case rowBuilder  // (Element) -> some View 闭包（@ViewBuilder）
@@ -74,13 +76,22 @@ let viewSignatures: [String: [[ViewParam]]] = [
     "Toggle": [[p(nil, .string), p("isOn", .binding)], [p("isOn", .binding), p("label", .view)]],
     "ForEach": [[p(nil, .data), p("id", .keyPath, opt: true), p("content", .rowBuilder)]],
     "List": [[p(nil, .data), p("id", .keyPath, opt: true), p("rowContent", .rowBuilder)], [p("content", .view)]],
-    "NavigationStack": [[p("content", .view)]],
+    "NavigationStack": [[p("content", .view)], [p("path", .binding), p("content", .view)]],
     "NavigationView": [[p("content", .view)]],
+    "NavigationLink": [[p(nil, .string), p("value", .any), p("label", .view, opt: true)],
+                       [p("value", .any), p("label", .view)],
+                       [p(nil, .string), p("destination", .view)],
+                       [p("destination", .view), p("label", .view)]],
+    "Slider": [[p("value", .binding), p("in", .range), p("step", .number, opt: true), p("label", .view, opt: true)]],
+    "Stepper": [[p(nil, .string), p("value", .binding), p("in", .range, opt: true)],
+                [p("value", .binding), p("in", .range, opt: true), p("label", .view)]],
+    "Picker": [[p(nil, .string), p("selection", .binding), p("content", .view)],
+               [p("selection", .binding), p("label", .view), p("content", .view)]],
     "ScrollView": [[p(nil, .symbol, opt: true), p("content", .view)]],
     "Group": [[p("content", .view)]],
     "Form": [[p("content", .view)]],
-    "Section": [[p(nil, .string, opt: true), p("content", .view)]],
-    "Image": [[p("systemName", .string)]],
+    "Section": [[p(nil, .string, opt: true), p("header", .string, opt: true), p("footer", .string, opt: true), p("content", .view)]],
+    "Image": [[p("systemName", .string)], [p(nil, .string)]],
     "ProgressView": [[p(nil, .string, opt: true), p("value", .number, opt: true)]],
     "Color": [[p("red", .number), p("green", .number), p("blue", .number), p("opacity", .number, opt: true)]],
 ]
@@ -120,6 +131,8 @@ let modifierSignatures: [String: ModifierSig] = [
     "onAppear": ModifierSig(labelSets: [["perform"]], argType: .function([], .void)),
     "onDisappear": ModifierSig(labelSets: [["perform"]], argType: .function([], .void)),
     "task": ModifierSig(labelSets: [[nil]], argType: .function([], .void)),
+    /// pickerStyle 样式透传（segmented/menu/automatic；视图本身不变，桥接按默认样式渲染）
+    "pickerStyle": ModifierSig(labelSets: [[nil]], argType: .symbol),
 ]
 
 let frameLabelOrder = ["width", "height", "maxWidth", "maxHeight", "alignment"]
@@ -170,6 +183,8 @@ func builtinMemberType(_ recv: SType, _ name: String, program types: [TypeDecl])
         case "isNaN", "isInfinite", "isFinite": return .bool
         default: return nil
         }
+    case .date:
+        return name == "description" ? .string : nil
     case .bool:
         return name == "description" ? .string : nil
     case .tuple(let ts, let ls):

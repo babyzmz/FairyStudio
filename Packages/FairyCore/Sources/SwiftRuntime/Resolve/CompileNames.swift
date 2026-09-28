@@ -9,9 +9,9 @@ enum StaticTypeRef {
 
 /// 不受支持的 SwiftUI 视图名（capabilityID 用 view.X）。
 let unsupportedViewNames: Set<String> = [
-    "Slider", "Stepper", "Picker", "DatePicker", "ColorPicker", "Label", "Link", "Menu", "TabView", "LazyVStack", "LazyHStack",
+    "DatePicker", "ColorPicker", "Label", "Link", "Menu", "TabView", "LazyVStack", "LazyHStack",
     "LazyVGrid", "LazyHGrid", "Grid", "GridRow", "GeometryReader", "Circle", "Rectangle", "RoundedRectangle", "Capsule", "Ellipse",
-    "Path", "Canvas", "TimelineView", "AsyncImage", "TextEditor", "Gauge", "ShareLink", "NavigationLink", "NavigationSplitView",
+    "Path", "Canvas", "TimelineView", "AsyncImage", "TextEditor", "Gauge", "ShareLink", "NavigationSplitView",
     "LinearGradient", "RadialGradient", "AngularGradient", "ToolbarItem", "EditButton", "ControlGroup", "DisclosureGroup",
     "OutlineGroup", "Table", "ContentUnavailableView", "ViewThatFits", "AnyView",
 ]
@@ -233,6 +233,13 @@ extension Compiler {
 
     func compileMemberAccess(_ m: MemberAccessExprSyntax, expected: SType?) -> SType {
         let name = m.declName.baseName.text
+        // Date.now（只读时钟；Date 为保留的内建类型名，不经过用户类型表）
+        if name == "now", let base = m.base?.as(DeclReferenceExprSyntax.self), base.baseName.text == "Date",
+           fb.peek("Date") == nil, typeByName["Date"] == nil {
+            use("stdlib.Date")
+            emit(.callBuiltin(name: "Date", labels: []))
+            return .date
+        }
         guard let base = m.base else { return compileImplicitMember(name, expected: expected, node: Syntax(m)) }
         if isProjectionRoot(base) { return compileProjection(ExprSyntax(m)) }
         if let tref = staticTypeReference(base) {
@@ -249,6 +256,11 @@ extension Compiler {
         let t = types[tid]
         if let idx = t.caseIndex(name) {
             use("syntax.enum")
+            if !t.cases[idx].associated.isEmpty {
+                error(.typeCheck, "case '.\(name)' 需要提供关联值，例如 `\(t.name).\(name)(…)`。", node)
+                emit(.pushVoid)
+                return .unknown
+            }
             emit(.pushEnum(type: tid, caseIndex: idx))
             return .named(tid, t.name)
         }

@@ -59,6 +59,8 @@ enum Stdlib {
             case "isFinite": return .bool(d.isFinite)
             default: break
             }
+        case .date(let d):
+            if name == "description" { return .string(String(describing: d)) }
         case .bool(let b):
             if name == "description" { return .string(b ? "true" : "false") }
         case .tuple(let t):
@@ -67,7 +69,7 @@ enum Stdlib {
         case .record(let r):
             let info = vm.program.types[r.type]
             if let i = info.fieldIndex[name] { return try deref(r.fields[i]) }
-        case .enumCase(let t, let i):
+        case .enumCase(let t, let i, _):
             let info = vm.program.types[t]
             if name == "rawValue", let raws = info.rawValues {
                 switch raws[i] {
@@ -79,7 +81,7 @@ enum Stdlib {
         case .metatype(let t):
             let info = vm.program.types[t]
             if name == "allCases", info.kind == .enumType {
-                return .array((0..<info.caseNames.count).map { .enumCase(type: t, index: $0) })
+                return .array((0..<info.caseNames.count).map { .enumCase(type: t, index: $0, payload: []) })
             }
         default:
             break
@@ -104,6 +106,20 @@ enum Stdlib {
                     throw VMError.trap("数组区间下标越界：\(r.lower)..<\(r.endExclusive)，数组长度 \(a.count)（Swift: Array index is out of range）")
                 }
                 return .array(Array(a[r.lower..<r.endExclusive]))
+            case .partialRange(let lo, let hi, let closed):
+                let l = lo ?? 0
+                let h: Int
+                if let hi {
+                    if closed {
+                        let (e, o) = hi.addingReportingOverflow(1)
+                        if o { throw VMError.trap("数组区间下标越界：上界溢出（Swift: Array index is out of range）") }
+                        h = e
+                    } else { h = hi }
+                } else { h = a.count }
+                guard l >= 0 && l <= h && h <= a.count else {
+                    throw VMError.trap("数组区间下标越界：单侧区间 \(l)..<\(h)，数组长度 \(a.count)（Swift: Array index is out of range）")
+                }
+                return .array(Array(a[l..<h]))
             default: break
             }
         case .dict(let d):
