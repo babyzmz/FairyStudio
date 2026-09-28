@@ -1,4 +1,5 @@
 // String 常用 API 与插值
+import Foundation
 let s = "Hello, Swift"
 print(s.count, s.isEmpty, "".isEmpty)
 print(s.uppercased(), s.lowercased())
@@ -25,3 +26,5 @@ print(["x", "y", "z"].joined(separator: "-"))
 print("a" + "b" + "c", "abc" == "abc", "abc" < "abd")
 let emoji = "🇨🇳👍🏽"
 print(emoji.count)
+print("Hello, Swift".replacingOccurrences(of: "Swift", with: "World"))
+print("  padded  ".trimmingCharacters(in: .whitespacesAndNewlines))

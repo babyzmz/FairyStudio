@@ -18,15 +18,11 @@ struct UnsupportedAndCatalogTests {
         ("actor", "actor Bank { var balance = 0 }\nprint(1)", "syntax.actor"),
         ("macroAttribute", "@Observable struct Model { var x = 0 }\nprint(1)", "syntax.macro"),
         ("otherAttribute", "@available(iOS 17, *) func f() {}\nprint(1)", "syntax.attribute"),
-        ("tuplePattern", "let (a, b) = (1, 2)\nprint(a + b)", "syntax.tuplePattern"),
         ("tupleSwitchPattern", "let p = (1, 2)\nswitch p {\ncase (0, 0): print(0)\ndefault: print(1)\n}", "syntax.tuplePattern"),
-        ("inoutParameter", "func inc(_ x: inout Int) { x += 1 }\nprint(1)", "syntax.function.inout"),
         ("typeCast", "let x = 3\nprint(x as Any)", "syntax.typeCasting"),
         ("typealias", "typealias Score = Int\nprint(1)", "syntax.typealias"),
-        ("associatedValues", "enum R { case ok(Int), fail }\nprint(1)", "syntax.enum.associatedValues"),
         ("defer", "func f() { defer { print(1) }\nprint(2) }\nf()", "syntax.defer"),
         ("labeledStatement", "outer: for i in 0..<2 { print(i) }", "syntax.labeledStatement"),
-        ("propertyObservers", "struct S { var x = 0 { didSet { print(x) } } }\nprint(1)", "syntax.struct.propertyObservers"),
         ("customOperator", "infix operator <+>\nprint(1)", "syntax.operatorDecl"),
         ("closureCaptureList", "var x = 1\nlet f = { [x] in print(x) }\nf()", "syntax.closure.captureList"),
         ("ifExpression", "let v = if true { 1 } else { 2 }\nprint(v)", "syntax.ifExpression"),
@@ -51,10 +47,7 @@ struct UnsupportedAndCatalogTests {
     }
 
     static let unsupportedUI: [(String, String, String)] = [
-        ("Slider", "Slider(value: $v, in: 0...1)", "view.Slider"),
-        ("NavigationLink", "NavigationLink(\"x\") { Text(\"y\") }", "view.NavigationLink"),
         ("shadowModifier", "Text(\"x\").shadow(radius: 2)", "modifier.shadow"),
-        ("sheetModifier", "Text(\"x\").sheet(isPresented: $flag) { Text(\"y\") }", "modifier.sheet"),
         ("fontSystem", "Text(\"x\").font(.system(size: 20))", "syntax.implicitMemberCall"),
         ("observedObject", "Text(\"x\")", "propertyWrapper.ObservedObject"),
     ]

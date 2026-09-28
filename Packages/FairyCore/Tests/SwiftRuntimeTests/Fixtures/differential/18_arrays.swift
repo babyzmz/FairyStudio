@@ -25,6 +25,15 @@ nums.swapAt(0, 1)
 print(nums)
 nums.sort()
 print(nums)
+var words = ["pear", "apple", "fig"]
+words.sort(by: >)
+print(words)
+words.sort { $0.count < $1.count }
+print(words)
+var evens = [1, 2, 3, 4, 5]
+evens.removeAll(where: { $0 % 2 == 1 })
+print(evens)
+print(Array([3, 1, 2].reversed()))
 nums.removeAll()
 print(nums, nums.isEmpty)
 let empty: [Int] = []
