@@ -1,0 +1,61 @@
+name: Runtime audit regression
+
+on:
+  push:
+    branches: [fix/runtime-audit-20260930]
+  pull_request:
+    paths:
+      - 'App/**'
+      - 'Packages/**'
+      - 'Tests/**'
+      - 'scripts/**'
+      - '.github/workflows/runtime-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Archive the exact source revision (no credentials or build products)
+        run: |
+          git rev-parse HEAD > "$RUNNER_TEMP/revision.txt"
+          git archive --format=zip HEAD -o "$RUNNER_TEMP/FairyStudio-source.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: audit-source-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/FairyStudio-source.zip
+            ${{ runner.temp }}/revision.txt
+          retention-days: 3
+  package-tests:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Record toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+      - name: Package regressions (no API keys or live inference)
+        run: |
+          set -o pipefail
+          swift test --package-path Packages/FairyCore 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-tests-${{ github.sha }}
+          path: ${{ runner.temp }}/swift-test.log
+          retention-days: 7
