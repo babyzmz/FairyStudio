@@ -19,41 +19,34 @@ jobs:
       commit: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply exact before/after hash-checked edits
+      - name: Apply checked regression-test corrections
         run: |
           python3 - <<'PY'
-          import hashlib, json
+          import hashlib
           from pathlib import Path
-          root = Path.cwd().resolve()
-          shards = [Path('.audit/fixes-' + n + '.json') for n in ['1','2','3','4a','4b']]
-          edits = [entry for shard in shards for entry in json.loads(shard.read_text())['files']]
-          assert len(edits) == 28, 'Unexpected file count'
-          prepared = {}
-          for entry in edits:
-              path = Path(entry['path'])
-              assert not path.is_absolute() and '..' not in path.parts
-              assert path.parts[0] in {'App', 'Packages', 'Tests', 'docs'}
-              target = root / path
-              assert target.resolve().is_relative_to(root) and not target.is_symlink()
-              assert str(path) not in prepared, 'Duplicate target'
-              assert target.exists() == entry['exists'], str(path)
-              original = target.read_text() if target.exists() else ''
-              assert hashlib.sha256(original.encode()).hexdigest() == entry['before'], 'Base mismatch: ' + str(path)
-              text = original
-              last = len(original)
-              for start, end, replacement in reversed(entry['edits']):
-                  assert 0 <= start <= end <= last
-                  text = text[:start] + replacement + text[end:]
-                  last = start
-              assert hashlib.sha256(text.encode()).hexdigest() == entry['after'], 'Result mismatch: ' + str(path)
-              prepared[str(path)] = text
-          for path, text in prepared.items():
-              target = root / path
-              target.parent.mkdir(parents=True, exist_ok=True)
-              target.write_text(text)
-          for shard in shards:
-              shard.unlink()
-          print('Applied and verified', len(prepared), 'source/test/document files')
+          edits = [
+              ('Tests/FairyStudioTests/AssistantSessionTests.swift',
+               '30b9d08460f4bddd55e63e7dc4d6e340645c4c185e37c84e7ecacee6bebce628',
+               '515b767080be2919dfa0f4c1ffcc7c292dcd7b9a53e2328e1a9c965629e01651',
+               'func isolatedSettings() -> AssistantSettingsModel {',
+               '@MainActor\nfunc isolatedSettings() -> AssistantSettingsModel {'),
+              ('Packages/FairyCore/Tests/ProjectCoreTests/ZipImportTests.swift',
+               'bd9f0701d923baaebc411c12ecf95a8dc83cba4280455e6ffe9f60a2c6fd4664',
+               '12d392dc225b3a31a4e379a51652aa01b64b9045b024a2be3f224195b2b5ce2d',
+               '#expect(snap.file(path: "Sources/App.swift") != nil)',
+               '#expect(snap.file(path: "Sources/random-dir/App.swift")?.contents == code)\n        #expect(snap.file(path: "Sources/App.swift") == nil, "导入应保留目录，不压平同名文件")')
+          ]
+          prepared = []
+          for name, before, after, old, new in edits:
+              path = Path(name)
+              original = path.read_text()
+              assert hashlib.sha256(original.encode()).hexdigest() == before, name
+              assert original.count(old) == 1, name
+              fixed = original.replace(old, new)
+              assert hashlib.sha256(fixed.encode()).hexdigest() == after, name
+              prepared.append((path, fixed))
+          for path, fixed in prepared:
+              path.write_text(fixed)
           PY
           git diff --check
           git diff --stat
@@ -62,8 +55,8 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add App Packages Tests docs .audit
-          git commit -m 'fix: harden runtime, file transactions, candidate startup and cloud edits'
+          git add Tests/FairyStudioTests/AssistantSessionTests.swift Packages/FairyCore/Tests/ProjectCoreTests/ZipImportTests.swift
+          git commit -m 'test: align ZIP regression with preserved paths and isolate settings factory'
           git push origin HEAD:refs/heads/fix/runtime-audit-20260930
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   verify:
@@ -88,6 +81,12 @@ jobs:
         run: |
           set -o pipefail
           swift test --package-path Packages/FairyCore --jobs 2 2>&1 | tee "$RUNNER_TEMP/package-tests.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-regression-${{ needs.apply.outputs.commit }}
+          path: ${{ runner.temp }}/package-tests.log
+          retention-days: 7
       - name: iOS 27 simulator app unit tests
         if: always() && steps.package.outcome != 'cancelled'
         run: |
