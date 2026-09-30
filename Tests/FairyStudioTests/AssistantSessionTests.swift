@@ -95,6 +95,7 @@ struct AssistantTestValidator: AssistantValidating {
 }
 
 /// 每次会话独立的设置实例：不读被污染的 UserDefaults.standard，backend 恒为设备端。
+@MainActor
 func isolatedSettings() -> AssistantSettingsModel {
     AssistantSettingsModel(
         defaults: UserDefaults(suiteName: "fairy.tests.settings.\(UUID().uuidString)")!,
