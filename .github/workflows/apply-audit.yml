@@ -1,0 +1,115 @@
+name: Apply and verify runtime audit repair
+
+on:
+  push:
+    branches: [fix/runtime-audit-20260930]
+    paths: ['.github/workflows/apply-audit.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    if: github.repository == 'babyzmz/FairyStudio' && github.ref == 'refs/heads/fix/runtime-audit-20260930'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      commit: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply exact before/after hash-checked edits
+        run: |
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root = Path.cwd().resolve()
+          shards = [Path('.audit/fixes-' + n + '.json') for n in ['1','2','3','4a','4b']]
+          edits = [entry for shard in shards for entry in json.loads(shard.read_text())['files']]
+          assert len(edits) == 28, 'Unexpected file count'
+          prepared = {}
+          for entry in edits:
+              path = Path(entry['path'])
+              assert not path.is_absolute() and '..' not in path.parts
+              assert path.parts[0] in {'App', 'Packages', 'Tests', 'docs'}
+              target = root / path
+              assert target.resolve().is_relative_to(root) and not target.is_symlink()
+              assert str(path) not in prepared, 'Duplicate target'
+              assert target.exists() == entry['exists'], str(path)
+              original = target.read_text() if target.exists() else ''
+              assert hashlib.sha256(original.encode()).hexdigest() == entry['before'], 'Base mismatch: ' + str(path)
+              text = original
+              last = len(original)
+              for start, end, replacement in reversed(entry['edits']):
+                  assert 0 <= start <= end <= last
+                  text = text[:start] + replacement + text[end:]
+                  last = start
+              assert hashlib.sha256(text.encode()).hexdigest() == entry['after'], 'Result mismatch: ' + str(path)
+              prepared[str(path)] = text
+          for path, text in prepared.items():
+              target = root / path
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_text(text)
+          for shard in shards:
+              shard.unlink()
+          print('Applied and verified', len(prepared), 'source/test/document files')
+          PY
+          git diff --check
+          git diff --stat
+      - name: Commit to repair branch only (never force-push)
+        id: commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add App Packages Tests docs .audit
+          git commit -m 'fix: harden runtime, file transactions, candidate startup and cloud edits'
+          git push origin HEAD:refs/heads/fix/runtime-audit-20260930
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  verify:
+    needs: apply
+    runs-on: xcode-27
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.apply.outputs.commit }}
+          persist-credentials: false
+      - name: Record actual Apple toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+          xcodebuild -showsdks
+          xcrun simctl list devices available
+          git rev-parse HEAD > "$RUNNER_TEMP/revision.txt"
+          git archive --format=zip HEAD -o "$RUNNER_TEMP/FairyStudio-fixed-source.zip"
+      - name: Swift package regression tests
+        id: package
+        run: |
+          set -o pipefail
+          swift test --package-path Packages/FairyCore --jobs 2 2>&1 | tee "$RUNNER_TEMP/package-tests.log"
+      - name: iOS 27 simulator app unit tests
+        if: always() && steps.package.outcome != 'cancelled'
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          data = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '-j']))
+          ids = [d['udid'] for runtime, devices in data['devices'].items() if '.iOS-27' in runtime for d in devices if d['name'].startswith('iPhone') and d.get('isAvailable')]
+          if not ids:
+              raise SystemExit('No iOS 27 iPhone simulator available. Do not downgrade the deployment target.')
+          with open(os.environ['RUNNER_TEMP'] + '/device-id.txt', 'w') as f:
+              f.write(ids[0])
+          PY
+          set -o pipefail
+          xcodebuild test -project FairyStudio.xcodeproj -scheme FairyStudio -destination "platform=iOS Simulator,id=$(cat "$RUNNER_TEMP/device-id.txt")" -only-testing:FairyStudioTests -parallel-testing-enabled NO -jobs 2 CODE_SIGNING_ALLOWED=NO -resultBundlePath "$RUNNER_TEMP/AppTests.xcresult" 2>&1 | tee "$RUNNER_TEMP/app-tests.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: runtime-audit-verified-${{ needs.apply.outputs.commit }}
+          path: |
+            ${{ runner.temp }}/revision.txt
+            ${{ runner.temp }}/FairyStudio-fixed-source.zip
+            ${{ runner.temp }}/package-tests.log
+            ${{ runner.temp }}/app-tests.log
+            ${{ runner.temp }}/AppTests.xcresult
+          retention-days: 7
