@@ -1,0 +1,40 @@
+name: Stop superseded audit runs
+on:
+  push:
+    branches: [fix/runtime-audit-20260930]
+    paths: ['.github/workflows/audit-cleanup.yml']
+permissions:
+  contents: read
+jobs:
+  cleanup:
+    if: github.repository == 'babyzmz/FairyStudio' && github.ref == 'refs/heads/fix/runtime-audit-20260930'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel only the three superseded runs created for this repair
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}
+          for run in [36673456487, 36673672753, 36674785218]:
+              url = 'https://api.github.com/repos/babyzmz/FairyStudio/actions/runs/' + str(run)
+              with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
+                  info = json.load(response)
+              assert info['head_branch'] == 'fix/runtime-audit-20260930'
+              assert info['name'] in ['Runtime audit regression', 'Apply and verify runtime audit repair']
+              if info['status'] == 'completed':
+                  print(run, 'already completed:', info.get('conclusion'), flush=True)
+                  continue
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(url + '/force-cancel', headers=headers, method='POST', data=b''), timeout=30) as response:
+                      print(run, 'superseded; force-cancel accepted:', response.status, flush=True)
+              except urllib.error.HTTPError as error:
+                  if error.code == 409:
+                      print(run, 'already terminating', flush=True)
+                  else:
+                      raise
+          PY
