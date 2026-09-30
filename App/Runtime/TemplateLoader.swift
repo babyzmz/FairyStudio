@@ -50,6 +50,7 @@ struct ProjectTemplate: Sendable {
 
     enum LoadError: Error, CustomStringConvertible {
         case missingDirectory(String)
+        case ambiguousIdentifier(String)
         case unsupportedFormat(Int)
         case missingEntry
         case unreadableFile(String, any Error)
@@ -57,6 +58,7 @@ struct ProjectTemplate: Sendable {
         var description: String {
             switch self {
             case let .missingDirectory(name): "App 包中找不到模板目录 Templates/\(name)"
+            case let .ambiguousIdentifier(name): "多个内置模板使用同一标识：\(name)"
             case let .unsupportedFormat(version): "模板格式版本 \(version) 不受支持"
             case .missingEntry: "模板未声明入口（entrySymbol / entry.rootView）"
             case let .unreadableFile(path, error): "无法读取模板文件 \(path)：\(error)"
@@ -65,9 +67,7 @@ struct ProjectTemplate: Sendable {
     }
 
     static func load(named name: String, bundle: Bundle = .main) throws -> ProjectTemplate {
-        guard let base = bundle.url(forResource: name, withExtension: nil, subdirectory: "Templates") else {
-            throw LoadError.missingDirectory(name)
-        }
+        let base = try directory(named: name, bundle: bundle)
         let manifestURL = base.appendingPathComponent("template.json")
         let manifest: Manifest
         do {
@@ -89,4 +89,28 @@ struct ProjectTemplate: Sendable {
         return ProjectTemplate(id: manifest.id, displayName: manifest.displayName, description: manifest.description,
                                category: manifest.category, entry: .rootView(symbol: rootView), files: files)
     }
+
+    /// Template IDs need not equal directory names (the legacy counter lives in Counter/).
+    /// Resolve a unique manifest ID rather than relying on case-insensitive filesystems.
+    private static func directory(named name: String, bundle: Bundle) throws -> URL {
+        guard !name.isEmpty, !name.contains("/"), name != ".", name != "..",
+              let resources = bundle.resourceURL else { throw LoadError.missingDirectory(name) }
+        let root = resources.appendingPathComponent("Templates", isDirectory: true)
+        let direct = root.appendingPathComponent(name, isDirectory: true)
+        if FileManager.default.fileExists(atPath: direct.appendingPathComponent("template.json").path) {
+            return direct
+        }
+        let directories = try FileManager.default.contentsOfDirectory(at: root,
+            includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
+        let matches = directories.filter { directory in
+            guard (try? directory.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
+                  let data = try? Data(contentsOf: directory.appendingPathComponent("template.json")),
+                  let manifest = try? JSONDecoder().decode(Manifest.self, from: data) else { return false }
+            return manifest.id == name
+        }
+        guard matches.count <= 1 else { throw LoadError.ambiguousIdentifier(name) }
+        guard let match = matches.first else { throw LoadError.missingDirectory(name) }
+        return match
+    }
+
 }
