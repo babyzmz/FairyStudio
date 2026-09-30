@@ -2,81 +2,96 @@ name: Runtime audit regression
 
 on:
   push:
-    branches: [fix/runtime-audit-20260930]
+    branches: [main, fix/runtime-audit-20260930]
+    paths: ['App/**', 'Packages/**', 'Tests/**', 'Config/**', 'FairyStudio.xcodeproj/**', 'project.yml', '.github/workflows/runtime-audit.yml']
   pull_request:
-    paths:
-      - 'App/**'
-      - 'Packages/**'
-      - 'Tests/**'
-      - 'scripts/**'
-      - '.github/workflows/runtime-audit.yml'
+    paths: ['App/**', 'Packages/**', 'Tests/**', 'Config/**', 'FairyStudio.xcodeproj/**', 'project.yml', '.github/workflows/runtime-audit.yml']
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: runtime-audit-${{ github.ref }}
+  group: runtime-audit-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  source-snapshot:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Archive the exact source revision (no credentials or build products)
-        run: |
-          git rev-parse HEAD > "$RUNNER_TEMP/revision.txt"
-          git archive --format=zip HEAD -o "$RUNNER_TEMP/FairyStudio-source.zip"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: audit-source-${{ github.sha }}
-          path: |
-            ${{ runner.temp }}/FairyStudio-source.zip
-            ${{ runner.temp }}/revision.txt
-          retention-days: 3
   package-tests:
-    runs-on: macos-latest
-    timeout-minutes: 25
+    runs-on: xcode-27
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Select required Xcode 27 SDK
-        run: |
-          ls -ld /Applications/Xcode*.app
-          python3 - <<'PY'
-          import glob, os, subprocess
-          candidates = []
-          for app in glob.glob('/Applications/Xcode*.app'):
-              dev = app + '/Contents/Developer'
-              env = dict(os.environ, DEVELOPER_DIR=dev)
-              version = subprocess.run(['xcodebuild', '-version'], env=env, capture_output=True, text=True)
-              print(app, version.stdout.strip(), version.stderr.strip(), flush=True)
-              if version.returncode == 0 and version.stdout.startswith('Xcode 27'):
-                  candidates.append(dev)
-          if not candidates:
-              raise SystemExit('Xcode 27 SDK unavailable on runner. Product target is not downgraded.')
-          selected = sorted(candidates)[-1]
-          with open(os.environ['GITHUB_ENV'], 'a') as f:
-              f.write('DEVELOPER_DIR=' + selected + '\n')
-          PY
-      - name: Record toolchain
-        run: |
-          swift --version
-          xcodebuild -version
-          xcodebuild -showsdks
-          xcrun simctl list devices available
-      - name: Package regressions (no API keys or live inference)
+      - name: Verify required toolchain and archive exact source
         run: |
           set -o pipefail
-          swift test --package-path Packages/FairyCore 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
+          xcodebuild -version | tee "$RUNNER_TEMP/toolchain.txt"
+          grep '^Xcode 27' "$RUNNER_TEMP/toolchain.txt"
+          swift --version | tee -a "$RUNNER_TEMP/toolchain.txt"
+          xcodebuild -showsdks | tee -a "$RUNNER_TEMP/toolchain.txt"
+          git rev-parse HEAD > "$RUNNER_TEMP/revision.txt"
+          git archive --format=zip HEAD -o "$RUNNER_TEMP/FairyStudio-source.zip"
+      - name: Swift package regressions (no real inference or API keys)
+        run: |
+          set -o pipefail
+          swift test --package-path Packages/FairyCore --jobs 2 2>&1 | tee "$RUNNER_TEMP/package-tests.log"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: package-tests-${{ github.sha }}
-          path: ${{ runner.temp }}/swift-test.log
+          path: |
+            ${{ runner.temp }}/toolchain.txt
+            ${{ runner.temp }}/revision.txt
+            ${{ runner.temp }}/FairyStudio-source.zip
+            ${{ runner.temp }}/package-tests.log
+          retention-days: 7
+
+  app-unit-tests:
+    runs-on: xcode-27
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        device-family: [iPhone, iPad]
+    env:
+      DEVICE_FAMILY: ${{ matrix.device-family }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Select an actual iOS 27 simulator
+        run: |
+          set -o pipefail
+          xcodebuild -version | tee "$RUNNER_TEMP/toolchain.txt"
+          grep '^Xcode 27' "$RUNNER_TEMP/toolchain.txt"
+          swift --version | tee -a "$RUNNER_TEMP/toolchain.txt"
+          git rev-parse HEAD > "$RUNNER_TEMP/revision.txt"
+          python3 - <<'PY'
+          import json, os, subprocess
+          data = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '-j']))
+          devices = [(runtime, d) for runtime, ds in data['devices'].items() if '.iOS-27' in runtime for d in ds if d['name'].startswith(os.environ['DEVICE_FAMILY']) and d.get('isAvailable')]
+          if not devices:
+              raise SystemExit('Required iOS 27 simulator unavailable. Product deployment target is not downgraded.')
+          runtime, device = devices[0]
+          print(runtime, device['name'], device['udid'], flush=True)
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write('SIMULATOR_UDID=' + device['udid'] + '\n')
+          with open(os.environ['RUNNER_TEMP'] + '/device.txt', 'w') as f:
+              json.dump({'runtime': runtime, 'device': device}, f)
+          PY
+      - name: App unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test -project FairyStudio.xcodeproj -scheme FairyStudio -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" -only-testing:FairyStudioTests -parallel-testing-enabled NO -jobs 2 CODE_SIGNING_ALLOWED=NO -resultBundlePath "$RUNNER_TEMP/AppTests.xcresult" 2>&1 | tee "$RUNNER_TEMP/app-tests.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-tests-${{ matrix.device-family }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/toolchain.txt
+            ${{ runner.temp }}/revision.txt
+            ${{ runner.temp }}/device.txt
+            ${{ runner.temp }}/app-tests.log
+            ${{ runner.temp }}/AppTests.xcresult
           retention-days: 7
