@@ -63,7 +63,7 @@ enum UpdateState: Equatable, Sendable {
     case applied
     /// 被阻断：候选过期（项目已有新版本）或需要数据/权限确认。
     case blocked
-    /// 应用失败（原版本仍可用）。
+    /// 更新失败；原运行实例是否仍可用由 RunCoordinator 的实际状态决定。
     case failed
     /// 用户放弃候选。
     case discarded
@@ -116,6 +116,8 @@ struct AppliedChangeRecord: Identifiable, Equatable, Sendable {
     var files: [(String, String, Int, Int)]
     /// 受影响文件的上一版内容（恢复上一版的数据来源）。
     var previousFiles: [(FileID, String, String)]
+    var beforeSnapshot: ProjectSnapshot? = nil
+    var afterSnapshot: ProjectSnapshot? = nil
 
     static func == (lhs: AppliedChangeRecord, rhs: AppliedChangeRecord) -> Bool {
         lhs.id == rhs.id && lhs.revision == rhs.revision
@@ -126,7 +128,7 @@ struct AppliedChangeRecord: Identifiable, Equatable, Sendable {
 
 enum UpdateStrategy: String, CaseIterable, Identifiable, Sendable {
     case manual = "手动确认"
-    case autoCompatible = "自动应用兼容修改"
+    case autoCompatible = "检查后重新运行"
     case paused = "暂停更新"
 
     var id: String { rawValue }

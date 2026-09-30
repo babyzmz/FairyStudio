@@ -42,12 +42,22 @@ public actor ProjectStore: ProjectAccess {
         guard manifest.schemaVersion <= ProjectManifest.currentSchemaVersion else {
             throw OpenError.unsupportedSchemaVersion(manifest.schemaVersion)
         }
+        guard manifest.files.count <= limits.maxSourceFiles * 2 else { throw ChangeSetError.limitExceeded("项目文件数超限") }
+        var fileIDs: Set<FileID> = [], paths: Set<String> = []
+        var bytes = 0
         var files: [ProjectFileSnapshot] = []
         for record in manifest.files {
+            try ChangeSetPreview.validateContentPath(record.path)
+            guard fileIDs.insert(record.id).inserted, paths.insert(ChangeSetPreview.pathKey(record.path)).inserted else {
+                throw ChangeSetError.pathConflict(record.path)
+            }
             let url = packageURL.appendingPathComponent(record.path)
             guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
                 throw OpenError.missingFile(record.path)
             }
+            guard contents.utf8.count <= limits.maxFileBytes else { throw ChangeSetError.limitExceeded("单文件超限") }
+            bytes += contents.utf8.count
+            guard bytes <= limits.maxTotalSourceBytes * 2 else { throw ChangeSetError.limitExceeded("项目总量超限") }
             files.append(ProjectFileSnapshot(id: record.id, path: record.path, contents: contents))
         }
         self.manifest = manifest
@@ -92,9 +102,11 @@ public actor ProjectStore: ProjectAccess {
     }
 
     public func apply(_ changeSet: FileChangeSet) async throws -> ChangeSetResult {
+        // Cancellation is observed in the actor before the synchronous commit section begins.
+        try Task.checkCancellation()
         if manifest.appliedChangeSets.contains(changeSet.id) { throw ChangeSetError.alreadyApplied(changeSet.id) }
         // 内存演算：revision / 哈希 / 路径 / 上限一次验清，失败则不碰磁盘。
-        let next = try ChangeSetPreview.apply(changeSet, to: current, limits: limits)
+        var next = try ChangeSetPreview.apply(changeSet, to: current, limits: limits)
         // 新建操作的 fileID：按路径在演算结果中找回（路径唯一已由演算保证）。
         var created: [FileID] = []
         for op in changeSet.operations {
@@ -116,7 +128,10 @@ public actor ProjectStore: ProjectAccess {
         if newManifest.appliedChangeSets.count > ProjectManifest.appliedChangeSetLimit {
             newManifest.appliedChangeSets.removeFirst(newManifest.appliedChangeSets.count - ProjectManifest.appliedChangeSetLimit)
         }
+        next.entry = newManifest.entryPoint
+        try Task.checkCancellation()
         try Self.writeRollbackRecord(snapshotsRoot: snapshotsRoot, manifest: manifest, base: current, next: next)
+        try Task.checkCancellation()
         try Self.atomicWrite(packageURL: packageURL, manifest: newManifest, files: next.files)
         manifest = newManifest
         current = next
@@ -140,7 +155,12 @@ public actor ProjectStore: ProjectAccess {
             }
             try manifest.encoded().write(to: staging.appendingPathComponent(ProjectLayout.manifestFileName),
                                          options: .atomic)
+            var paths: Set<String> = [], ids: Set<FileID> = []
             for file in files {
+                try ChangeSetPreview.validateContentPath(file.path)
+                guard paths.insert(ChangeSetPreview.pathKey(file.path)).inserted, ids.insert(file.id).inserted else {
+                    throw ChangeSetError.pathConflict(file.path)
+                }
                 let url = staging.appendingPathComponent(file.path)
                 try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try file.contents.write(to: url, atomically: true, encoding: .utf8)
@@ -191,5 +211,29 @@ private extension FileOperation {
         case let .rename(id, _, _): id
         case let .delete(id, _): id
         }
+    }
+}
+
+/// One in-process writer per canonical document URL. Pending opens are also shared.
+actor ProjectStoreRegistry {
+    static let shared = ProjectStoreRegistry()
+    private final class WeakStore: @unchecked Sendable {
+        weak var value: ProjectStore?
+        init(_ value: ProjectStore) { self.value = value }
+    }
+    private var stores: [String: WeakStore] = [:]
+    private var pending: [String: Task<ProjectStore, any Error>] = [:]
+
+    func open(packageURL: URL, snapshotsRoot: URL, limits: ProjectLimits) async throws -> ProjectStore {
+        let key = packageURL.standardizedFileURL.resolvingSymlinksInPath().path
+        if let store = stores[key]?.value { return store }
+        if let task = pending[key] { return try await task.value }
+        let task = Task { try await ProjectStore(packageURL: packageURL, snapshotsRoot: snapshotsRoot, limits: limits) }
+        pending[key] = task
+        do {
+            let store = try await task.value
+            stores[key] = WeakStore(store); pending[key] = nil
+            return store
+        } catch { pending[key] = nil; throw error }
     }
 }

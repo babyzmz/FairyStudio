@@ -23,6 +23,8 @@ final class WorkspaceModel {
     var selectedTabID: FileID?
     /// 未保存草稿：tabID → 编辑内容（与快照不一致即脏）。
     var drafts: [FileID: String] = [:]
+    private var draftBases: [FileID: ContentHash] = [:]
+    private var editGenerations: [FileID: UInt64] = [:]
     /// 光标 offset：tabID → location（切换标签保留）。
     var cursors: [FileID: Int] = [:]
     /// 光标恢复令牌：切换标签时 +1，驱动 CodeTextView 恢复光标。
@@ -90,9 +92,11 @@ final class WorkspaceModel {
         snapshot = next
         // 消失的文件：清掉标签与草稿。
         let ids = Set(next.files.map(\.id))
-        openedTabs.removeAll { !ids.contains($0) }
-        for id in drafts.keys where !ids.contains(id) { drafts.removeValue(forKey: id) }
-        if let selected = selectedTabID, !ids.contains(selected) {
+        openedTabs.removeAll { !ids.contains($0) && drafts[$0] == nil }
+        if drafts.keys.contains(where: { !ids.contains($0) }) {
+            errorMessage = "有正在编辑的文件被删除；草稿已保留，请复制到新文件后保存。"
+        }
+        if let selected = selectedTabID, !ids.contains(selected), drafts[selected] == nil {
             selectedTabID = openedTabs.first
         }
         // 外部提交后：草稿基于旧哈希保存会失败；脏 tab 保留（用户显式保存时若哈希过期再提示）。
@@ -104,6 +108,7 @@ final class WorkspaceModel {
     // MARK: - 标签与草稿
 
     func open(_ id: FileID) {
+        assistant.selectedPath = snapshot?.file(id: id)?.path
         if !openedTabs.contains(id) { openedTabs.append(id) }
         if selectedTabID != id {
             selectedTabID = id
@@ -112,9 +117,15 @@ final class WorkspaceModel {
     }
 
     func close(_ id: FileID) {
+        guard drafts[id] == nil else {
+            errorMessage = "该文件有未保存修改，请保存后再关闭。"
+            return
+        }
+        draftBases[id] = nil; editGenerations[id] = nil
         openedTabs.removeAll { $0 == id }
         drafts.removeValue(forKey: id)
         if selectedTabID == id { selectedTabID = openedTabs.last }
+        assistant.selectedPath = selectedTabID.flatMap { snapshot?.file(id: $0)?.path }
     }
 
     func text(of id: FileID) -> String {
@@ -124,7 +135,13 @@ final class WorkspaceModel {
 
     func setText(_ text: String, for id: FileID) {
         let base = snapshot?.file(id: id)?.contents ?? ""
-        if text == base { drafts.removeValue(forKey: id) } else { drafts[id] = text }
+        editGenerations[id, default: 0] += 1
+        if text == base {
+            drafts.removeValue(forKey: id); draftBases[id] = nil
+        } else {
+            if draftBases[id] == nil { draftBases[id] = snapshot?.file(id: id)?.hash }
+            drafts[id] = text
+        }
     }
 
     func isDirty(_ id: FileID) -> Bool { drafts[id] != nil }
@@ -153,20 +170,41 @@ final class WorkspaceModel {
     @discardableResult
     func save(_ id: FileID) async -> Bool {
         guard let draft = drafts[id], let file = snapshot?.file(id: id) else { return false }
-        let ok = await submit([.replace(fileID: id, expectedBaseHash: file.hash, contents: draft)], summary: "保存 \(file.path)")
-        if ok { drafts.removeValue(forKey: id) }
+        guard let baseHash = draftBases[id], baseHash == file.hash else {
+            errorMessage = "文件已被助手或其他窗口修改。草稿已保留，请对照最新版本合并，不能直接覆盖。"
+            return false
+        }
+        let generation = editGenerations[id]
+        let ok = await submit([.replace(fileID: id, expectedBaseHash: baseHash, contents: draft)], summary: "保存 \(file.path)")
+        if ok {
+            if editGenerations[id] == generation { drafts[id] = nil; draftBases[id] = nil }
+            else { draftBases[id] = ContentHash(of: draft) }
+        }
         return ok
     }
 
     func saveAll() async {
         guard let snap = snapshot else { return }
+        let submittedDrafts = drafts, submittedGenerations = editGenerations
         var ops: [FileOperation] = []
-        for (id, draft) in drafts {
-            guard let file = snap.file(id: id) else { continue }
-            ops.append(.replace(fileID: id, expectedBaseHash: file.hash, contents: draft))
+        for (id, draft) in submittedDrafts {
+            guard let file = snap.file(id: id) else {
+                errorMessage = "草稿对应的文件已被删除。请先另存恢复，保存全部不会丢弃草稿。"
+                return
+            }
+            guard let hash = draftBases[id], hash == file.hash else {
+                errorMessage = "存在版本冲突，草稿已保留，请先合并。"
+                return
+            }
+            ops.append(.replace(fileID: id, expectedBaseHash: hash, contents: draft))
         }
         guard !ops.isEmpty else { return }
-        if await submit(ops, summary: "保存全部（\(ops.count) 个文件）") { drafts.removeAll() }
+        if await submit(ops, summary: "保存全部（\(ops.count) 个文件）") {
+            for (id, text) in submittedDrafts {
+                if editGenerations[id] == submittedGenerations[id] { drafts[id] = nil; draftBases[id] = nil }
+                else { draftBases[id] = ContentHash(of: text) }
+            }
+        }
     }
 
     // MARK: - 文件树操作
@@ -241,9 +279,13 @@ final class WorkspaceModel {
     // MARK: - 运行
 
     func run() {
+        guard !hasDirtyTabs else {
+            errorMessage = "请先保存修改再运行；不会悄悄运行旧代码。"
+            return
+        }
         guard let snap = snapshot else { return }
         UIApplication.dismissKeyboard()
-        coordinator.run(snap.program, entry: snap.entry)
+        coordinator.run(snap.program, entry: snap.entry, sourceRevision: snap.revision)
     }
 
     func stop() { coordinator.stop() }

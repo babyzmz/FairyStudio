@@ -97,7 +97,7 @@ public struct ProjectLibrary: Sendable {
     }
 
     public func openStore(_ id: ProjectID) async throws -> ProjectStore {
-        try await ProjectStore(packageURL: storeURL(for: id), snapshotsRoot: snapshotsRoot, limits: limits)
+        try await ProjectStoreRegistry.shared.open(packageURL: storeURL(for: id), snapshotsRoot: snapshotsRoot, limits: limits)
     }
 
     // MARK: - 新建 / 模板 / 复制 / 删除 / 重命名
@@ -176,7 +176,11 @@ public struct ProjectLibrary: Sendable {
     @discardableResult
     public func importZIP(_ data: Data, displayName: String? = nil) throws -> ProjectID {
         let entries: [ZipArchive.Entry]
-        do { entries = try ZipArchive.decode(data) }
+        do {
+            let bounds = ZipImportLimits.derived(from: limits)
+            entries = try ZipArchive.decode(data, limits: .init(maxFiles: bounds.maxFiles,
+                maxFileBytes: bounds.maxFileBytes, maxTotalBytes: bounds.maxTotalBytes))
+        }
         catch { throw LibraryError.invalidImport("ZIP 无法解析：\(error)") }
         let files = entries.filter { !$0.isDirectory }
         for entry in files {
@@ -230,8 +234,9 @@ public struct ProjectLibrary: Sendable {
         for entry in files {
             guard let contents = String(data: entry.data, encoding: .utf8) else { continue }
             if entry.name.hasSuffix(".swift") {
-                let base = (entry.name as NSString).lastPathComponent
-                collected.append((path: "\(ProjectLayout.sources)/\(sanitizeFileName(base))", contents: contents))
+                let path = entry.name.hasPrefix(ProjectLayout.sources + "/")
+                    ? entry.name : "\(ProjectLayout.sources)/\(entry.name)"
+                collected.append((path: path, contents: contents))
             } else {
                 collected.append((path: entry.name, contents: contents))
             }
@@ -278,8 +283,12 @@ public struct ProjectLibrary: Sendable {
         let id = ProjectID()
         var snapshots: [ProjectFileSnapshot] = []
         var total = 0
+        var paths: Set<String> = []
         for file in files {
-            try ChangeSetPreview.validatePath(file.path)
+            try ChangeSetPreview.validateContentPath(file.path)
+            guard paths.insert(ChangeSetPreview.pathKey(file.path)).inserted else {
+                throw LibraryError.invalidImport("重复路径：\(file.path)")
+            }
             guard file.contents.utf8.count <= limits.maxFileBytes else {
                 throw LibraryError.invalidImport("文件过大：\(file.path)")
             }
@@ -305,7 +314,7 @@ public struct ProjectLibrary: Sendable {
     }
 
     private func blankContent(name: String) -> String {
-        "import SwiftUI\n\nstruct ContentView: View {\n    var body: some View {\n        VStack(spacing: 12) {\n            Text(\"\(name)\")\n                .font(.title)\n            Text(\"Hello, FairyStudio!\")\n        }\n        .padding()\n    }\n}\n"
+        "import SwiftUI\n\nstruct ContentView: View {\n    var body: some View {\n        VStack(spacing: 12) {\n            Text(\(String(reflecting: name)))\n                .font(.title)\n            Text(\"Hello, FairyStudio!\")\n        }\n        .padding()\n    }\n}\n"
     }
 
     private func sanitizeFileName(_ name: String) -> String {

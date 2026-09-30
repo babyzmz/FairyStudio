@@ -115,7 +115,8 @@ public final class OpenRouterProvider: ModelBackendDriver, @unchecked Sendable {
     private let modelID: Mutex<String>
     private let urlSession: URLSession
     /// 最近一次请求的真实 token 统计（来自响应 usage.include），按所选模型独立口径。
-    public private(set) var lastUsage: OpenRouterUsage?
+    private let usageState = Mutex<OpenRouterUsage?>(nil)
+    public var lastUsage: OpenRouterUsage? { usageState.withLock { $0 } }
 
     public init(keyStore: any APIKeyStoring, modelID: String = OpenRouterCatalog.defaultModelID,
                 urlSession: URLSession = .shared) {
@@ -170,7 +171,7 @@ public final class OpenRouterProvider: ModelBackendDriver, @unchecked Sendable {
     public func testConnection() async -> ModelAvailability {
         do {
             var sawContent = false
-            let request = ModelRequest(prompt: "ping", backend: .openRouter, instructions: nil)
+            let request = ModelRequest(prompt: "ping", backend: .openRouter, instructions: nil, maximumOutputTokens: 32)
             try await self.stream(request: request) { snapshot in
                 if !snapshot.isEmpty { sawContent = true }
             }
@@ -185,7 +186,8 @@ public final class OpenRouterProvider: ModelBackendDriver, @unchecked Sendable {
         }
     }
 
-    private let liveCatalog = Mutex<[OpenRouterModelInfo]>([])
+    // Shared by settings, connection tests and the broker; not a disposable per-view cache.
+    private static let liveCatalog = Mutex<[OpenRouterModelInfo]>([])
 
     /// 实时模型目录（公开端点）：核对上下文长度与输出上限并缓存；设置页据此显示真实数字。
     public func fetchLiveModels() async throws -> [OpenRouterModelInfo] {
@@ -211,13 +213,13 @@ public final class OpenRouterProvider: ModelBackendDriver, @unchecked Sendable {
                 ?? ((item["top_provider"] as? [String: Any])?["max_completion_tokens"] as? Int)
             out.append(OpenRouterModelInfo(id: id, displayName: id, contextLength: context, maxOutput: maxOutput))
         }
-        liveCatalog.withLock { $0 = out }
+        Self.liveCatalog.withLock { $0 = out }
         return out
     }
 
     /// 模型维度：实时目录优先，回退静态清单（可能为 nil = 尚未核对）。
     public func modelInfo(for id: String) -> OpenRouterModelInfo? {
-        if let live = liveCatalog.withLock({ $0 }).first(where: { $0.id == id }) {
+        if let live = Self.liveCatalog.withLock({ $0 }).first(where: { $0.id == id }) {
             return live
         }
         return OpenRouterCatalog.info(for: id)
@@ -230,6 +232,7 @@ public final class OpenRouterProvider: ModelBackendDriver, @unchecked Sendable {
             throw ModelTaskFailure.unavailable(.missingAPIKey)
         }
         let model = modelID.withLock { $0 }
+        usageState.withLock { $0 = nil }
         var payload: [String: Any] = [
             "model": model,
             "stream": true,
@@ -240,9 +243,16 @@ public final class OpenRouterProvider: ModelBackendDriver, @unchecked Sendable {
                 ["role": "user", "content": request.prompt],
             ],
         ]
-        if let info = modelInfo(for: model), let maxOutput = info.maxOutput {
-            payload["max_tokens"] = maxOutput
+        // Conservative admission estimate, NOT a provider tokenizer or billing measurement.
+        // Usage returned by the endpoint remains the authoritative post-request measurement.
+        let estimatedInput = request.prompt.utf8.count + (request.instructions?.utf8.count ?? 0) + 256
+        var outputBudget = max(1, min(request.maximumOutputTokens, modelInfo(for: model)?.maxOutput ?? 8192))
+        if let context = modelInfo(for: model)?.contextLength {
+            let remaining = context - estimatedInput - 512
+            guard remaining >= 256 else { throw ModelTaskFailure.exceededContextWindowSize("请求超过保守输入预算，请缩小任务") }
+            outputBudget = min(outputBudget, remaining)
         }
+        payload["max_tokens"] = outputBudget
         var urlRequest = URLRequest(url: URL(string: Self.endpoint)!)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
@@ -261,14 +271,18 @@ public final class OpenRouterProvider: ModelBackendDriver, @unchecked Sendable {
         }
 
         var accumulated = ""
+        var accumulatedBytes = 0
+        var sawDone = false
         var finishReason: String?
         for try await line in bytes.lines {
             try Task.checkCancellation()
             guard line.hasPrefix("data:") else { continue }
             let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
-            guard payload != "[DONE]" else { break }
+            if payload == "[DONE]" { sawDone = true; break }
             guard let data = payload.data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw ModelTaskFailure.truncatedOutput("SSE 数据帧损坏")
+            }
             // 流中途错误：如实解析并终止（不得当作完成内容）。
             if let errorObject = obj["error"] {
                 throw Self.mapOpenRouterError(status: http.statusCode, errorObject: errorObject)
@@ -276,11 +290,13 @@ public final class OpenRouterProvider: ModelBackendDriver, @unchecked Sendable {
             if let usage = obj["usage"] as? [String: Any] {
                 let promptTokens = usage["prompt_tokens"] as? Int ?? 0
                 let completionTokens = usage["completion_tokens"] as? Int ?? 0
-                lastUsage = OpenRouterUsage(promptTokens: promptTokens, completionTokens: completionTokens, modelID: model)
+                usageState.withLock { $0 = OpenRouterUsage(promptTokens: promptTokens, completionTokens: completionTokens, modelID: model) }
             }
             if let choices = obj["choices"] as? [[String: Any]], let choice = choices.first {
                 if let delta = choice["delta"] as? [String: Any],
                    let content = delta["content"] as? String, !content.isEmpty {
+                    accumulatedBytes += content.utf8.count
+                    guard accumulatedBytes <= 2 << 20 else { throw ModelTaskFailure.truncatedOutput("响应超过本机接收上限") }
                     accumulated += content
                     onSnapshot(accumulated)
                 }
@@ -296,9 +312,10 @@ public final class OpenRouterProvider: ModelBackendDriver, @unchecked Sendable {
         if finishReason == "error" {
             throw ModelTaskFailure.truncatedOutput("finish_reason=error")
         }
-        if finishReason == nil && accumulated.isEmpty {
-            throw ModelTaskFailure.endpointIncompatible("流式响应未包含任何内容")
+        guard sawDone, finishReason == "stop" else {
+            throw ModelTaskFailure.truncatedOutput("响应缺少成功终态或被服务商中断；修改未提交")
         }
+        guard !accumulated.isEmpty else { throw ModelTaskFailure.endpointIncompatible("流式响应未包含任何内容") }
     }
 
     // MARK: - 错误解析（逐类，绝不无条件重试）
@@ -313,7 +330,7 @@ public final class OpenRouterProvider: ModelBackendDriver, @unchecked Sendable {
         case 404: return .endpointIncompatible(detail)
         default:
             if isContextError(detail) { return .exceededContextWindowSize(detail) }
-            return .systemError("HTTP \\(status)（\\(detail)）")
+            return .systemError("HTTP \(status)（\(detail)）")
         }
     }
 
@@ -334,7 +351,7 @@ public final class OpenRouterProvider: ModelBackendDriver, @unchecked Sendable {
         case 404: return .endpointIncompatible(message)
         default:
             if isContextError(message) { return .exceededContextWindowSize(message) }
-            return .systemError("HTTP \\(code)（\\(message)）")
+            return .systemError("HTTP \(code)（\(message)）")
         }
     }
 
@@ -352,6 +369,6 @@ public final class OpenRouterProvider: ModelBackendDriver, @unchecked Sendable {
            let message = e["message"] as? String {
             return message
         }
-        return body.isEmpty ? "HTTP \\(status)" : String(body.prefix(300))
+        return body.isEmpty ? "HTTP \(status)" : String(body.prefix(300))
     }
 }

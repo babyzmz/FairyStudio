@@ -72,14 +72,14 @@ struct RunCoordinatorTests {
         await coordinator.stop().value
     }
 
-    @Test("重新运行：先 await 旧实例 stop() 完成，再校验并启动新实例")
+    @Test("重新运行：先校验候选，再停止旧实例并启动新实例")
     func rerunStopsBeforeStart() async {
         let engine = RecordingEngine()
         let coordinator = RunCoordinator(engine: engine)
         await coordinator.run(sampleProgram).value
         #expect(await waitUntil { coordinator.state == .running })
         await coordinator.run(sampleProgram).value
-        #expect(engine.entries == ["validate", "run:1", "stop-begin:1", "stop-end:1", "validate", "run:2"])
+        #expect(engine.entries == ["validate", "run:1", "validate", "stop-begin:1", "stop-end:1", "run:2"])
         await coordinator.stop().value
         #expect(engine.entries.suffix(2) == ["stop-begin:2", "stop-end:2"])
     }
@@ -165,5 +165,30 @@ struct RunCoordinatorTests {
         #expect(lastCount == "Count: 1")
         #expect(consoleLines.contains { $0.contains("不属于本实例") })
         #expect(consoleLines.contains { $0.contains("乱序") })
+    }
+}
+
+
+@MainActor
+@Suite("Audit: startup readiness", .serialized)
+struct AuditStartupReadinessTests {
+    @Test func interactiveWorkDoesNotWaitForTermination() async throws {
+        let coordinator = RunCoordinator(engine: FixtureEngine(scenario: .counter))
+        let clock = ContinuousClock(), start = ContinuousClock.now
+        await coordinator.run(sampleProgram).value
+        let diagnostics = try await coordinator.waitUntilReady(timeout: .seconds(2))
+        #expect(!diagnostics.contains { $0.severity == .error })
+        #expect(coordinator.state == .running)
+        #expect(clock.now - start < .seconds(2))
+        await coordinator.stop().value
+    }
+
+    @Test func cancelledReadinessWaitExitsImmediately() async throws {
+        let coordinator = RunCoordinator(engine: RecordingEngine())
+        await coordinator.run(sampleProgram).value // No render event in this test engine.
+        let task = Task { try await coordinator.waitUntilReady(timeout: .seconds(10)) }
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+        await coordinator.stop().value
     }
 }

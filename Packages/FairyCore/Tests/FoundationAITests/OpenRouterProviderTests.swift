@@ -297,6 +297,42 @@ struct OpenRouterProviderTests {
         #expect(availability == .missingAPIKey)
     }
 
+    @Test("有正文但没有 finish_reason：拒绝提交")
+    func missingFinishReasonRejected() async throws {
+        MockOpenRouterURLProtocol.reset()
+        MockOpenRouterURLProtocol.handler = { _ in
+            MockOpenRouterURLProtocol.sseResponse([deltaEvent("{\"operations\":[]}")])
+        }
+        let result = try await collect(makeProvider())
+        guard case .truncatedOutput = result.failure else { Issue.record("未拒绝缺少终态的流"); return }
+    }
+
+    @Test("finish_reason=stop 但缺少 DONE：拒绝异常 EOF")
+    func missingDoneRejected() async throws {
+        MockOpenRouterURLProtocol.reset()
+        MockOpenRouterURLProtocol.handler = { _ in
+            let response = HTTPURLResponse(url: URL(string: OpenRouterProvider.endpoint)!, statusCode: 200,
+                httpVersion: nil, headerFields: nil)!
+            return (response, Data(("data: " + deltaEvent("ok") + "\ndata: " + finishEvent("stop") + "\n").utf8))
+        }
+        let result = try await collect(makeProvider())
+        guard case .truncatedOutput = result.failure else { Issue.record("未拒绝异常 EOF"); return }
+    }
+
+    @Test("目录缓存被新的 Provider 共享")
+    func catalogueSurvivesProviderReplacement() async throws {
+        MockOpenRouterURLProtocol.reset()
+        MockOpenRouterURLProtocol.handler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(#"{"data":[{"id":"audit/catalog-only","context_length":64000,"top_provider":{"max_completion_tokens":4000}}]}"#.utf8))
+        }
+        let first = makeProvider()
+        _ = try await first.fetchLiveModels()
+        let other = makeProvider()
+        #expect(other.modelInfo(for: "audit/catalog-only")?.contextLength == 64000)
+        #expect(other.modelInfo(for: "audit/catalog-only")?.maxOutput == 4000)
+    }
+
     // MARK: - 真实 API 验证（环境变量门控；默认跳过，不冒充已测）
 
     /// 真实验证入口：FAIRY_OPENROUTER_LIVE=1 且 FAIRY_OPENROUTER_KEY=sk-or-… 时运行。
@@ -315,7 +351,7 @@ struct OpenRouterProviderTests {
         // ~5600 token 的长提示（远超 Apple 4K 会话限制，但在所选模型预算内）。
         let longPrompt = String(repeating: "请记住这一段背景资料：项目使用 Swift 子集解释器执行界面代码。\\n", count: 120)
             + "请回答：收到。"
-        let provider = OpenRouterProvider(keyStore: store, modelID: "openai/gpt-4o-mini")
+        let provider = OpenRouterProvider(keyStore: store, modelID: env["FAIRY_OPENROUTER_MODEL"] ?? OpenRouterCatalog.defaultModelID)
         var text = ""
         for try await snapshot in provider.streamResponse(
             to: ModelRequest(prompt: longPrompt, backend: .openRouter, instructions: "你是测试助手。")) {

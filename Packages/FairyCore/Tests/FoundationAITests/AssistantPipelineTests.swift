@@ -336,26 +336,18 @@ struct AssistantPipelineTests {
         #expect(!AssistantPipeline.looksTruncated("示例：\n```swift\nlet a = 1\n```"))
     }
 
-    @Test("输出中途截断：自动续写一次补齐并建卡")
+    @Test("截断输出被拒绝：不拼接后续片段")
     func continuationCompletes() async throws {
         let project = FakeProject(files: demoFiles)
         let snapshot = await project.snapshot()
-        let truncated = "改好了：\n```json\n{\"operations\":[{\"action\":\"create\",\"path\":\"Sources/A.swift\",\"contents\":\"struct A {"
-        let remainder = "}\"}]}"   // 直接接在 "struct A {" 之后，补完字符串与 JSON 结构
-        let model = ScriptedModel([.text(truncated), .text(remainder)])
-        let input = AssistantTurnInput(userPrompt: "新建一个 A", snapshot: snapshot, backendName: "onDevice")
+        let model = ScriptedModel([.text("```json\n{\"operations\":["), .text("不应调用")])
+        let input = AssistantTurnInput(userPrompt: "新建", snapshot: snapshot, backendName: "onDevice")
         let outcome = try await AssistantPipeline().runTurn(input, perform: model.perform,
-                                                            validator: FakeValidator { _ in okValidation() })
-        guard case let .proposed(pending) = outcome.result else {
-            Issue.record("期望 proposed，实际 \(outcome.result)")
-            return
+            validator: FakeValidator { _ in okValidation() })
+        guard case .failed(.outputTruncated) = outcome.result else {
+            Issue.record("截断结果不应建卡"); return
         }
-        #expect(pending.files.first?.path == "Sources/A.swift")
-        #expect(pending.candidate.file(path: "Sources/A.swift")?.contents == "struct A {}")
-        // 续写提示自带被截断的全文（每次请求都是新会话，模型无记忆）。
-        #expect(model.prompts.count == 2)
-        #expect(model.prompts[1].contains("续写"))
-        #expect(model.prompts[1].contains("struct A {"))
+        #expect(model.prompts.count == 1)
     }
 
     @Test("续写无进展即停：报 outputTruncated")
@@ -371,7 +363,7 @@ struct AssistantPipelineTests {
             Issue.record("期望 outputTruncated，实际 \(outcome.result)")
             return
         }
-        #expect(model.prompts.count == 2)
+        #expect(model.prompts.count == 1)
     }
 
     @Test("连续续写到上限仍不完整：报 outputTruncated")
@@ -387,7 +379,7 @@ struct AssistantPipelineTests {
             Issue.record("期望 outputTruncated，实际 \(outcome.result)")
             return
         }
-        #expect(model.prompts.count == 3)   // 初始 + 2 轮续写
+        #expect(model.prompts.count == 1) // 不拼接半成品
     }
 
     @Test("modelTail 透传：[[MORE]] 续作标记随结果返回")
@@ -449,5 +441,39 @@ struct AssistantPipelineTests {
                             testIDs: [], notes: nil),
         ])
         #expect(caps.contains("view.Text"))
+    }
+}
+
+
+@Suite("Audit: cloud source context")
+struct AuditCloudContextTests {
+    @Test func allSwiftFilesAreActuallyProvidedWithoutFourKInstruction() {
+        let snapshot = AssistantTestSupport.makeSnapshot(files: [
+            ("Sources/First.swift", "one", "func firstMarker() {}"),
+            ("Sources/Nested/Second.swift", "two", "func secondMarker() {}"),
+            ("Data/private.json", "secret", "privateBusinessMarker")
+        ])
+        let input = AssistantTurnInput(userPrompt: "modify both files", snapshot: snapshot,
+                                       backendName: ModelBackend.openRouter.rawValue)
+        let prompt = AssistantPromptBuilder.build(input, budget: .noHistory, history: [],
+            repairSection: nil, capabilityLineLimit: 32)
+        #expect(prompt.contains("func firstMarker() {}"))
+        #expect(prompt.contains("func secondMarker() {}"))
+        #expect(!prompt.contains("privateBusinessMarker"))
+        #expect(!prompt.contains("约 4K"))
+    }
+
+    @Test func cloudCannotReplaceUnreadDataFile() async throws {
+        let snapshot = AssistantTestSupport.makeSnapshot(files: [("Data/private.json", "secret", "private")])
+        let model = ScriptedModel([.text(AssistantTestSupport.json([
+            ["action": "replace", "fileID": "secret", "contents": "overwritten"]
+        ]))])
+        let outcome = try await AssistantPipeline().runTurn(
+            AssistantTurnInput(userPrompt: "change", snapshot: snapshot, backendName: ModelBackend.openRouter.rawValue),
+            perform: model.perform, validator: FakeValidator { _ in okValidation() })
+        guard case .failed(.previewFailed) = outcome.result else {
+            Issue.record("Unread file replacement was not rejected")
+            return
+        }
     }
 }

@@ -74,12 +74,26 @@ public enum ZipArchive {
 
     // MARK: - 读（stored + deflate）
 
-    public static func decode(_ data: Data) throws -> [Entry] {
+    public struct DecodeLimits: Sendable {
+        public var maxFiles: Int
+        public var maxFileBytes: Int
+        public var maxTotalBytes: Int
+        public init(maxFiles: Int = 100, maxFileBytes: Int = 256 << 10, maxTotalBytes: Int = 2 << 20) {
+            self.maxFiles = maxFiles; self.maxFileBytes = maxFileBytes; self.maxTotalBytes = maxTotalBytes
+        }
+    }
+
+    public static func decode(_ data: Data, limits: DecodeLimits = .init()) throws -> [Entry] {
+        guard limits.maxFiles >= 0, limits.maxFileBytes >= 0, limits.maxTotalBytes >= 0 else {
+            throw ZipError.corrupt("非法解压限额")
+        }
         guard let eocd = findEOCD(in: data) else { throw ZipError.corrupt("找不到 EOCD") }
         let count = Int(eocd.count)
+        guard count <= limits.maxFiles else { throw ZipError.corrupt("ZIP 条目数超限") }
         let centralOffset = Int(eocd.centralOffset)
         var entries: [Entry] = []
         var cursor = centralOffset
+        var total = 0
         for _ in 0..<count {
             let h: CentralHeader = try read(&cursor, data, "中央目录越界")
             guard h.signature == 0x0201_4B50 else { throw ZipError.corrupt("中央目录签名错误") }
@@ -88,14 +102,31 @@ public enum ZipArchive {
             var localCursor = Int(h.localOffset)
             let l: LocalHeader = try read(&localCursor, data, "本地头越界")
             guard l.signature == 0x0403_4B50 else { throw ZipError.corrupt("本地头签名错误") }
-            localCursor += Int(l.nameLength) + Int(l.extraLength)
-            let raw = data[localCursor..<localCursor + Int(h.compressedSize)]
+            let extra = Int(l.nameLength) + Int(l.extraLength)
+            guard localCursor <= data.count, extra <= data.count - localCursor else {
+                throw ZipError.corrupt("本地文件名或扩展区越界")
+            }
+            localCursor += extra
+            let compressed = Int(h.compressedSize), expanded = Int(h.uncompressedSize)
+            guard localCursor <= data.count, compressed <= data.count - localCursor else {
+                throw ZipError.corrupt("压缩内容越界")
+            }
+            guard expanded <= limits.maxFileBytes, total <= limits.maxTotalBytes,
+                  expanded <= limits.maxTotalBytes - total else { throw ZipError.corrupt("ZIP 解压大小超限") }
+            try Task.checkCancellation()
+            let raw = data[localCursor..<(localCursor + compressed)]
             let bytes: Data
             switch h.method {
-            case 0: bytes = Data(raw)
+            case 0:
+                guard compressed == expanded else { throw ZipError.corrupt("stored 大小不符") }
+                bytes = Data(raw)
             case 8: bytes = try inflateRaw(Data(raw), expectedSize: Int(h.uncompressedSize), crc: h.crc)
             default: throw ZipError.unsupported("不支持的压缩方法 \(h.method)：\(h.name)")
             }
+            guard bytes.count == expanded, crc32(bytes) == h.crc else {
+                throw ZipError.corrupt("条目大小或 CRC32 不符")
+            }
+            total += bytes.count
             let fileType = (h.externalAttrs >> 16) & 0o170000
             entries.append(Entry(name: h.name, data: bytes,
                                  isDirectory: h.name.hasSuffix("/"),
@@ -154,7 +185,9 @@ public enum ZipArchive {
         cursor += 46
         guard cursor + nameLen <= data.count else { throw ZipError.corrupt("文件名越界") }
         let name = String(decoding: data[cursor..<cursor + nameLen], as: UTF8.self)
-        cursor += nameLen + extraLen + commentLen
+        let tail = nameLen + extraLen + commentLen
+        guard tail <= data.count - cursor else { throw ZipError.corrupt("中央目录扩展区越界") }
+        cursor += tail
         return CentralHeader(signature: sig, flags: flags, method: method, crc: crc,
                              compressedSize: comp, uncompressedSize: uncomp,
                              name: name, externalAttrs: attrs, localOffset: localOff)

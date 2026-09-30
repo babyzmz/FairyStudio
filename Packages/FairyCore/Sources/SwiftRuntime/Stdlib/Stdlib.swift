@@ -48,7 +48,9 @@ enum Stdlib {
         case .int(let i):
             switch name {
             case "description": return .string(String(i))
-            case "magnitude": return .int(Int(bitPattern: i.magnitude))
+            case "magnitude":
+                guard i != Int.min else { throw VMError.unsupported("Int.min.magnitude 需要 UInt", capabilityID: "stdlib.Int.magnitude") }
+                return .int(Swift.abs(i))
             default: break
             }
         case .double(let d):
@@ -171,8 +173,15 @@ enum Stdlib {
                 return .void
             case "append(contentsOf:)":
                 switch args[0] {
-                case .array(let b): a.append(contentsOf: b)
-                case .range(let r): a.append(contentsOf: (r.lower..<r.endExclusive).map { .int($0) })
+                case .array(let b):
+                    try meter?.checkGrowth(current: a.count, adding: b.count)
+                    a.append(contentsOf: b)
+                case .range(let r):
+                    try meter?.checkGrowth(current: a.count, adding: r.count)
+                    for x in r.lower..<r.endExclusive {
+                        if a.count & 1023 == 0 { try meter?.checkCancel() }
+                        a.append(.int(x))
+                    }
                 default: throw VMError.typeMismatch("append(contentsOf:) 需要数组。")
                 }
                 try meter?.checkCollection(a.count)
@@ -232,6 +241,10 @@ enum Stdlib {
             switch name {
             case "append(_:)", "append(contentsOf:)":
                 guard case .string(let t) = args[0] else { throw VMError.typeMismatch("String.append 需要 String。") }
+                let (size, overflow) = s.utf8.count.addingReportingOverflow(t.utf8.count)
+                if overflow || size > (meter?.budget.maxStringLength ?? Int.max) {
+                    throw VMError.budget(.stringLength, "字符串增长超过预算")
+                }
                 s += t
                 try meter?.checkString(s)
                 return .void
@@ -314,8 +327,21 @@ enum Stdlib {
         case .array(let a): return a
         case .range(let r):
             try vm.meter.checkCollection(r.count)
-            return (r.lower..<r.endExclusive).map { .int($0) }
-        case .string(let s): return s.map { .string(String($0)) }
+            var result: [Value] = []
+            result.reserveCapacity(r.count)
+            for (index, value) in (r.lower..<r.endExclusive).enumerated() {
+                if index & 1023 == 0 { try vm.meter.checkCancel() }
+                result.append(.int(value))
+            }
+            return result
+        case .string(let s):
+            try vm.meter.checkCollection(s.count)
+            var result: [Value] = []
+            for (index, value) in s.enumerated() {
+                if index & 1023 == 0 { try vm.meter.checkCancel() }
+                result.append(.string(String(value)))
+            }
+            return result
         case .dict(let d):
             return d.keys.indices.map { .tuple(TupleValue(elements: [d.keys[$0], d.values[$0]], labels: ["key", "value"])) }
         default: return nil

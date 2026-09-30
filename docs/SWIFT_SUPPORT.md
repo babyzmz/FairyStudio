@@ -109,7 +109,7 @@
 | `syntax.statement` | 其他语句 | unsupported | — | — |  |
 | `syntax.expression` | 其他表达式 | unsupported | — | — |  |
 
-## 标准库（supported 138 / partial 2 / unsupported 65）
+## 标准库（supported 125 / partial 15 / unsupported 65）
 
 | capabilityID | 名称 | 级别 | 签名 | 测试 | 备注 |
 |---|---|---|---|---|---|
@@ -145,10 +145,10 @@
 | `stdlib.Array.startIndex` | Array.startIndex | **supported** | `startIndex` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Array.endIndex` | Array.endIndex | **supported** | `endIndex` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Array.joined` | Array.joined | **supported** | `joined(separator:) / joined()` | `differential/03_strings.swift` `differential/24_algorithms.swift` | 仅 [String] |
-| `stdlib.Array.prefix` | Array.prefix | **supported** | `prefix(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
-| `stdlib.Array.suffix` | Array.suffix | **supported** | `suffix(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
-| `stdlib.Array.dropFirst` | Array.dropFirst | **supported** | `dropFirst() / dropFirst(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
-| `stdlib.Array.dropLast` | Array.dropLast | **supported** | `dropLast() / dropLast(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Array.prefix` | Array.prefix | partial | `prefix(_:)` | `differential/37_w4_stdlib_breadth.swift` | 当前物化为 Array/String，不支持原生 Slice/Substring 类型及保留索引语义 |
+| `stdlib.Array.suffix` | Array.suffix | partial | `suffix(_:)` | `differential/37_w4_stdlib_breadth.swift` | 当前物化为 Array/String，不支持原生 Slice/Substring 类型及保留索引语义 |
+| `stdlib.Array.dropFirst` | Array.dropFirst | partial | `dropFirst() / dropFirst(_:)` | `differential/37_w4_stdlib_breadth.swift` | 当前物化为 Array/String，不支持原生 Slice/Substring 类型及保留索引语义 |
+| `stdlib.Array.dropLast` | Array.dropLast | partial | `dropLast() / dropLast(_:)` | `differential/37_w4_stdlib_breadth.swift` | 当前物化为 Array/String，不支持原生 Slice/Substring 类型及保留索引语义 |
 | `stdlib.Array.subscript` | Array.subscript | **supported** | `a[i] / a[range]` | `differential/18_arrays.swift` `differential/27_trap_index_out_of_range.swift` | 越界为受控 trap |
 | `stdlib.Array.init` | Array.init | **supported** | `Array(seq) / Array(repeating:count:) / [T]()` | `differential/18_arrays.swift` `differential/06_ranges_for.swift` |  |
 | `stdlib.Range.count` | Range.count | **supported** | `count` | `differential/06_ranges_for.swift` |  |
@@ -167,15 +167,15 @@
 | `stdlib.Range.compactMap` | Range.compactMap | **supported** | `compactMap(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Range.sorted` | Range.sorted | **supported** | `sorted()` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Range.enumerated` | Range.enumerated | **supported** | `enumerated()` | `differential/37_w4_stdlib_breadth.swift` |  |
-| `stdlib.Range.firstIndex` | Range.firstIndex | **supported** | `firstIndex(of:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.firstIndex` | Range.firstIndex | **supported** | `firstIndex(of:) / firstIndex(where:)` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Range.lastIndex` | Range.lastIndex | **supported** | `lastIndex(of:)` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Range.min` | Range.min | **supported** | `min()` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Range.max` | Range.max | **supported** | `max()` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Range.joined` | Range.joined | unsupported | `joined()` | — | Int 元素序列无 joined（仅对 String 元素序列有意义） |
-| `stdlib.Range.prefix` | Range.prefix | **supported** | `prefix(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
-| `stdlib.Range.suffix` | Range.suffix | **supported** | `suffix(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
-| `stdlib.Range.dropFirst` | Range.dropFirst | **supported** | `dropFirst()` | `differential/37_w4_stdlib_breadth.swift` |  |
-| `stdlib.Range.dropLast` | Range.dropLast | **supported** | `dropLast()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.prefix` | Range.prefix | partial | `prefix(_:)` | `differential/37_w4_stdlib_breadth.swift` | 当前物化为 Array/String，不支持原生 Slice/Substring 类型及保留索引语义 |
+| `stdlib.Range.suffix` | Range.suffix | partial | `suffix(_:)` | `differential/37_w4_stdlib_breadth.swift` | 当前物化为 Array/String，不支持原生 Slice/Substring 类型及保留索引语义 |
+| `stdlib.Range.dropFirst` | Range.dropFirst | partial | `dropFirst()` | `differential/37_w4_stdlib_breadth.swift` | 当前物化为 Array/String，不支持原生 Slice/Substring 类型及保留索引语义 |
+| `stdlib.Range.dropLast` | Range.dropLast | partial | `dropLast()` | `differential/37_w4_stdlib_breadth.swift` | 当前物化为 Array/String，不支持原生 Slice/Substring 类型及保留索引语义 |
 | `stdlib.String.count` | String.count | **supported** | `count` | `differential/03_strings.swift` | 按字素簇计数 |
 | `stdlib.String.isEmpty` | String.isEmpty | **supported** | `isEmpty` | `differential/03_strings.swift` |  |
 | `stdlib.String.first` | String.first | **supported** | `first` | `differential/37_w4_stdlib_breadth.swift` | Character 以单字符 String 表示 |
@@ -192,10 +192,10 @@
 | `stdlib.String.replacingOccurrences` | String.replacingOccurrences | **supported** | `replacingOccurrences(of:with:)` | `differential/03_strings.swift` |  |
 | `stdlib.String.trimmingCharacters` | String.trimmingCharacters | **supported** | `trimmingCharacters(in:)` | `differential/03_strings.swift` | 只去除空白与换行 |
 | `stdlib.String.reversed` | String.reversed | **supported** | `reversed()` | `differential/03_strings.swift` |  |
-| `stdlib.String.prefix` | String.prefix | **supported** | `prefix(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
-| `stdlib.String.suffix` | String.suffix | **supported** | `suffix(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
-| `stdlib.String.dropFirst` | String.dropFirst | **supported** | `dropFirst()` | `differential/37_w4_stdlib_breadth.swift` |  |
-| `stdlib.String.dropLast` | String.dropLast | **supported** | `dropLast()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.String.prefix` | String.prefix | partial | `prefix(_:)` | `differential/37_w4_stdlib_breadth.swift` | 当前物化为 Array/String，不支持原生 Slice/Substring 类型及保留索引语义 |
+| `stdlib.String.suffix` | String.suffix | partial | `suffix(_:)` | `differential/37_w4_stdlib_breadth.swift` | 当前物化为 Array/String，不支持原生 Slice/Substring 类型及保留索引语义 |
+| `stdlib.String.dropFirst` | String.dropFirst | partial | `dropFirst()` | `differential/37_w4_stdlib_breadth.swift` | 当前物化为 Array/String，不支持原生 Slice/Substring 类型及保留索引语义 |
+| `stdlib.String.dropLast` | String.dropLast | partial | `dropLast()` | `differential/37_w4_stdlib_breadth.swift` | 当前物化为 Array/String，不支持原生 Slice/Substring 类型及保留索引语义 |
 | `stdlib.String.removeAll` | String.removeAll | **supported** | `removeAll()` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.String.removeLast` | String.removeLast | **supported** | `removeLast()` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.String.removeFirst` | String.removeFirst | **supported** | `removeFirst()` | `differential/37_w4_stdlib_breadth.swift` |  |
@@ -229,7 +229,7 @@
 | `stdlib.Int.isMultiple` | Int.isMultiple | **supported** | `isMultiple(of:)` | `differential/01_int_arithmetic.swift` |  |
 | `stdlib.Int.signum` | Int.signum | **supported** | `signum()` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Int.description` | Int.description | **supported** | `description` | `differential/37_w4_stdlib_breadth.swift` |  |
-| `stdlib.Int.magnitude` | Int.magnitude | **supported** | `magnitude` | `differential/37_w4_stdlib_breadth.swift` | UInt 语义，按 Int 非负值表示 |
+| `stdlib.Int.magnitude` | Int.magnitude | partial | `magnitude` | `differential/37_w4_stdlib_breadth.swift` | 非 Int.min 时以非负 Int 表示；Int.min 需要 UInt，明确拒绝 |
 | `stdlib.Double.init` | Double.init | **supported** | `Double(Int) / Double(String) → Double?` | `differential/22_conversions.swift` `differential/02_double_arithmetic.swift` |  |
 | `stdlib.Double.rounded` | Double.rounded | **supported** | `rounded() / rounded(_:)` | `differential/02_double_arithmetic.swift` `differential/37_w4_stdlib_breadth.swift` | 规则：up/down/toNearestOrAwayFromZero/toNearestOrEven |
 | `stdlib.Double.squareRoot` | Double.squareRoot | **supported** | `squareRoot()` | `differential/02_double_arithmetic.swift` |  |

@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State private var isUpdatingCatalog = false
     @State private var catalogNotice = ""
     @State private var keyRevision = 0
+    @State private var catalogRevision = 0
     private let keychain = OpenRouterKeychain()
 
     var body: some View {
@@ -122,6 +123,7 @@ struct SettingsView: View {
                                 let known = live.filter { info in
                                     OpenRouterCatalog.verified.contains { $0.id == info.id }
                                 }
+                                catalogRevision += 1
                                 catalogNotice = "已核对 \(known.count)/\(OpenRouterCatalog.verified.count) 个模型（目录共 \(live.count) 个可用）"
                             } catch let failure as ModelTaskFailure {
                                 catalogNotice = failure.userMessage
@@ -140,7 +142,7 @@ struct SettingsView: View {
                     Text(catalogNotice).font(.caption)
                 }
                 LabeledContent("上下文", value: contextDescription())
-                Text("启用后，对话与项目摘要将发送至 OpenRouter 及其上游模型供应商；关闭即停止发送。Key 仅存于本机钥匙串，不进入源码、日志与导出内容。各模型的 token 预算独立管理，不受设备端 4K 上下文限制。")
+                Text("启用后，对话、诊断与项目 Swift 源码将发送至 OpenRouter 及其上游模型供应商；关闭后拒绝新请求；已发送内容无法撤回。Key 仅存于本机钥匙串，不进入源码、日志与导出内容。各模型的 token 预算独立管理，不受设备端 4K 上下文限制。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -164,7 +166,7 @@ struct SettingsView: View {
             case .manual:
                 Text("每个候选先看改动再应用。").font(.caption).foregroundStyle(.secondary)
             case .autoCompatible:
-                Text("通过检查的修改自动应用并运行；权限与数据变更永远另行确认。").font(.caption).foregroundStyle(.secondary)
+                Text("候选启动检查通过后提交并重新运行；临时界面状态会重置。保状态热更新尚未启用。").font(.caption).foregroundStyle(.secondary)
             case .paused:
                 Text("继续生成候选，但保留当前运行版本，不自动应用。").font(.caption).foregroundStyle(.secondary)
             }
@@ -194,6 +196,7 @@ struct SettingsView: View {
     }
 
     private func contextDescription() -> String {
+        _ = catalogRevision
         let provider = OpenRouterProvider(keyStore: keychain, modelID: settings.openRouterModelID)
         guard let info = provider.modelInfo(for: settings.openRouterModelID) else { return "待核对（更新模型目录）" }
         var parts: [String] = []

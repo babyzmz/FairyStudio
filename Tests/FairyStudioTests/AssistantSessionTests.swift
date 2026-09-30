@@ -445,3 +445,48 @@ struct AssistantSessionTests {
         #expect(accumulator.all.isEmpty)
     }
 }
+
+
+@MainActor
+@Suite("Audit: precommit candidate isolation", .serialized)
+struct AuditCandidateIsolationTests {
+    @Test func candidateStartupFailureNeverCommits() async throws {
+        let project = FakeAssistantProject()
+        let before = await project.snapshot()
+        let driver = ScriptedAssistantDriver([.text(replaceJSON(contents: "bad candidate"))])
+        let session = AssistantSession(project: project, coordinator: RunCoordinator(engine: RecordingEngine()),
+            library: nil, broker: ModelBroker(drivers: [driver], consent: assistantConsent()),
+            settings: isolatedSettings(), validator: AssistantTestValidator(), runner: { _ in [] },
+            preflight: { _ in [Diagnostic(kind: .runtimeTrap, message: "candidate trap")] })
+        session.autoRunOnValidated = true
+        session.inputDraft = "change"
+        session.send()
+        #expect(await waitUntil { !session.isResponding })
+        #expect(await project.appliedCount == 0)
+        #expect(await project.snapshot() == before)
+        #expect(session.runningVersion == nil)
+    }
+
+    @Test func cancellationDuringPreflightNeverCommits() async throws {
+        let project = FakeAssistantProject()
+        let entered = CurrentGeneration()
+        let sentinel = UUID()
+        let driver = ScriptedAssistantDriver([.text(replaceJSON(contents: "candidate"))])
+        let session = AssistantSession(project: project, coordinator: RunCoordinator(engine: RecordingEngine()),
+            library: nil, broker: ModelBroker(drivers: [driver], consent: assistantConsent()),
+            settings: isolatedSettings(), validator: AssistantTestValidator(), runner: { _ in [] },
+            preflight: { _ in
+                entered.set(sentinel)
+                try await Task.sleep(for: .seconds(10))
+                return []
+            })
+        session.autoRunOnValidated = true
+        session.inputDraft = "change"
+        session.send()
+        #expect(await waitUntil { entered.get() == sentinel })
+        session.cancel()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(await project.appliedCount == 0)
+        #expect(session.runningVersion == nil)
+    }
+}

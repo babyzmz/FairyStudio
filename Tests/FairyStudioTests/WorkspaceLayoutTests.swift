@@ -40,3 +40,56 @@ struct WorkspaceLayoutTests {
         #expect(compatibilityStatus(manifest: "oops", current: current) == .incompatible)
     }
 }
+
+
+import Foundation
+import ProjectCore
+import ProjectContracts
+
+@MainActor
+@Suite("Audit: workspace draft protection", .serialized)
+struct AuditWorkspaceDraftTests {
+    @Test func staleDraftCannotOverwriteAssistantCommit() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let library = ProjectLibrary(documentsURL: directory, currentRuntimeVersion: "0.1.0")
+        let store = try await library.openStore(try library.createBlank(displayName: "Draft"))
+        let model = WorkspaceModel(store: store, library: library, coordinator: RunCoordinator(engine: RecordingEngine()))
+        await model.reload()
+        let file = try #require(model.snapshot?.files.first)
+        model.open(file.id)
+        model.setText("// my uncommitted edit", for: file.id)
+        let base = await store.snapshot()
+        _ = try await store.apply(FileChangeSet(baseRevision: base.revision,
+            operations: [.replace(fileID: file.id, expectedBaseHash: file.hash, contents: "// assistant edit")],
+            summary: "AI", origin: .ai(backend: "test")))
+        await model.reload()
+        #expect(await model.save(file.id) == false)
+        #expect(model.text(of: file.id) == "// my uncommitted edit")
+        #expect(await store.snapshot().file(id: file.id)?.contents == "// assistant edit")
+        model.close(file.id)
+        #expect(model.openedTabs.contains(file.id))
+        #expect(model.isDirty(file.id))
+    }
+
+    @Test func saveAllDoesNotDiscardDeletedFileDraft() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let library = ProjectLibrary(documentsURL: directory, currentRuntimeVersion: "0.1.0")
+        let store = try await library.openStore(try library.createBlank(displayName: "Deleted"))
+        let model = WorkspaceModel(store: store, library: library, coordinator: RunCoordinator(engine: RecordingEngine()))
+        await model.reload()
+        let file = try #require(model.snapshot?.files.first)
+        model.open(file.id)
+        model.setText("recover me", for: file.id)
+        let base = await store.snapshot()
+        _ = try await store.apply(FileChangeSet(baseRevision: base.revision,
+            operations: [.delete(fileID: file.id, expectedBaseHash: file.hash)], summary: "delete", origin: .user))
+        await model.reload()
+        await model.saveAll()
+        #expect(model.text(of: file.id) == "recover me")
+        #expect(model.isDirty(file.id))
+        model.run()
+        #expect(!model.coordinator.isActive)
+    }
+}
