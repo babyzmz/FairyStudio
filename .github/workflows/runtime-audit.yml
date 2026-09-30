@@ -40,15 +40,36 @@ jobs:
           retention-days: 3
   package-tests:
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Select required Xcode 27 SDK
+        run: |
+          ls -ld /Applications/Xcode*.app
+          python3 - <<'PY'
+          import glob, os, subprocess
+          candidates = []
+          for app in glob.glob('/Applications/Xcode*.app'):
+              dev = app + '/Contents/Developer'
+              env = dict(os.environ, DEVELOPER_DIR=dev)
+              version = subprocess.run(['xcodebuild', '-version'], env=env, capture_output=True, text=True)
+              print(app, version.stdout.strip(), version.stderr.strip(), flush=True)
+              if version.returncode == 0 and version.stdout.startswith('Xcode 27'):
+                  candidates.append(dev)
+          if not candidates:
+              raise SystemExit('Xcode 27 SDK unavailable on runner. Product target is not downgraded.')
+          selected = sorted(candidates)[-1]
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write('DEVELOPER_DIR=' + selected + '\n')
+          PY
       - name: Record toolchain
         run: |
           swift --version
           xcodebuild -version
+          xcodebuild -showsdks
+          xcrun simctl list devices available
       - name: Package regressions (no API keys or live inference)
         run: |
           set -o pipefail
