@@ -56,6 +56,8 @@ final class AIStatusModel {
         switch backend {
         case .onDevice: onDevice
         case .privateCloudCompute: cloud
+        // 旧状态页不跟踪 OpenRouter（助手设置内单独显示）。
+        case .openRouter: nil
         }
     }
 
@@ -129,6 +131,7 @@ final class AIStatusModel {
                 switch backend {
                 case .onDevice: onDevice = impact
                 case .privateCloudCompute: cloud = impact
+                case .openRouter: break
                 }
             }
         case .cancelled:

@@ -10,26 +10,48 @@
 		0DE9587B88A86EC7F273A204 /* TemplateLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BDC8022846202BC836DC372 /* TemplateLoader.swift */; };
 		1176307210F83D6E39A85995 /* RunCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 656AEBF440C8105B9E13940C /* RunCoordinatorTests.swift */; };
 		1EE3ECF5B1549A19740EF01A /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFCCEC416065F8B14CA01B36 /* TestSupport.swift */; };
+		209B88F0D4F34AD665F6E1B9 /* HistorySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E603137850F795FF0FA226 /* HistorySheet.swift */; };
+		21131E4F0AD36443825169B5 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66220F3E9AF37156254A2A92 /* ChatView.swift */; };
+		2600EA1EB565715D48472C3E /* FileTreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE7CAF79CEFC71CCE3B0B81 /* FileTreeView.swift */; };
 		276F6A8A129F930854017552 /* AIStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9EC09769427D98CB54142B2 /* AIStatusView.swift */; };
+		2A02C7F2DCBF37D95514752B /* WorkspaceLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E74F1022A1932FBF2C7C762D /* WorkspaceLayoutTests.swift */; };
 		2A71010746A43A5E15F29193 /* RuntimeContracts in Frameworks */ = {isa = PBXBuildFile; productRef = 9AA53EF78AE06EF0767E6F5A /* RuntimeContracts */; };
-		3882C012E31CD77F38109C0B /* RunLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 512DC45DD42A18B5E5933E5D /* RunLabView.swift */; };
 		38CAB9327BB1E4232AF1586E /* FoundationModelsOnSimulatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40329B79CE2082B15EE8B1F /* FoundationModelsOnSimulatorTests.swift */; };
 		39E59F07FA4C5C5BBA01A465 /* RunCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCACDA912087B42BF77C82FA /* RunCoordinator.swift */; };
+		4D0655E4786E3B538FBB04E8 /* ProjectContracts in Frameworks */ = {isa = PBXBuildFile; productRef = 0ACB0E5C9D044D382DD9B651 /* ProjectContracts */; };
+		4F73F9999280D5D5C988400D /* DiagnosticCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ABCF0195467F9865CD45549 /* DiagnosticCardView.swift */; };
+		535E82B7B168841061F4E4DE /* OpenRouterKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9465B8319E016F6EA595655 /* OpenRouterKeychain.swift */; };
 		5C849B1B57B20316A67ACB0A /* EngineCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CACF8EF234D176628E9EA51 /* EngineCatalog.swift */; };
+		6F096D6187BAE0325E8F4990 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C9D09F826A184389BCAAA5 /* SettingsView.swift */; };
+		6F202F04B1AE777E26B50D61 /* AssistantSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC724D5CDF510857D53BC64 /* AssistantSettingsModel.swift */; };
 		7EB804B52FD225A9079B7CC6 /* SwiftRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = 81708123B1FDC2D065E61CA0 /* SwiftRuntime */; };
+		8051607A5C811593177D0414 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51D6EE93ADABC63214B3762 /* DesignSystem.swift */; };
 		8A68BDDB6D2629EA7D29646F /* ProcessMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBEAB5DC23130FA4AE0BADEC /* ProcessMemory.swift */; };
+		930746175CB17C8BBD088369 /* ProjectCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6AD95B5ABD549CE4CA45D992 /* ProjectCore */; };
+		97F9ACFB6FE12191170E619B /* WorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2223E7E7EDD1ED5326BAB59C /* WorkspaceView.swift */; };
+		9BC4EAD08E36E679C1CF0F1F /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 345E66A4D2EC872221F64774 /* LibraryView.swift */; };
+		A5FC47CE874EB6CAB8366729 /* ChangeCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D7BB2A1B5B76A7C1165A379 /* ChangeCardView.swift */; };
 		BC37833400F58DA1344510E6 /* BridgeTextFieldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67E39D97207242D5C61597C8 /* BridgeTextFieldTests.swift */; };
-		BDA507965C5B9F85801A4767 /* StudioModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F805AD0B53C1EB4580B45E /* StudioModel.swift */; };
+		BF6AC5FC7C9C2831842F4AC1 /* StateContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AA8A8FC2C4DEBF781B18E8C /* StateContract.swift */; };
 		BFFBE4BA66B5520FC775A94D /* CodeTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E066AB756A0EF8ECDBCB2850 /* CodeTextView.swift */; };
+		C17D4B80894465279B57CC06 /* AssistantSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0E29B3211143153658EAF50 /* AssistantSession.swift */; };
 		C352238D7F13B0BBB8D11B95 /* FairyStudioUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515E8340B54B125ECA8AA6F2 /* FairyStudioUITests.swift */; };
+		C48A8C59E046264BA1AC5640 /* AgentRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5260D72A0780691652EB1E78 /* AgentRunner.swift */; };
 		C80D79E7933D2A456DAC563E /* FairyStudioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF134EFBBEEC76AC105BBFA /* FairyStudioApp.swift */; };
+		C9A2681F011750D4BFD3E16B /* AssistantPanelHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 742F83439AAC90BF7DFF208B /* AssistantPanelHost.swift */; };
+		CCF8F887CA4850CE0C633C0A /* WorkspaceModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2292BEDE8D3DE04DFB2C3A8C /* WorkspaceModel.swift */; };
 		D1008C0AC261767A2ABDD521 /* FoundationAI in Frameworks */ = {isa = PBXBuildFile; productRef = 7DDC7F65BE657E7F121A7BBE /* FoundationAI */; };
 		D27CCB93B2BB3CECA025620D /* LabPanes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F05FD20696290A2DE70078A4 /* LabPanes.swift */; };
 		DBA7DC532250719E855B091B /* Templates in Resources */ = {isa = PBXBuildFile; fileRef = F80DC619C0470AFB398EDB8F /* Templates */; };
 		DC779299672385211D043C1E /* NativeBridge in Frameworks */ = {isa = PBXBuildFile; productRef = 30092714575799E1A9065C1C /* NativeBridge */; };
+		DC7FA491259DDD77FB82B5B2 /* AssistantSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF5FED6D76838A2D1DF98FB /* AssistantSidebarView.swift */; };
+		E27A3F0D26C7912EC5605CD1 /* Conversations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6ED3526EE6ED3CB82BA218D /* Conversations.swift */; };
 		E60D35FA75E0F8DE12DC2E40 /* AIStatusModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61AD1653C2FA181C63029D2 /* AIStatusModel.swift */; };
+		E60F982DF1DFF67B38DC7540 /* AssistantSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F75768CB6222C0443EBC0863 /* AssistantSessionTests.swift */; };
 		E7AEF62A8CA0DC53F4BAEDC3 /* BridgeLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8A657340E5DCEB185B7B22 /* BridgeLifecycleTests.swift */; };
+		EF5E44D31C3AA8B3DEEFA60C /* StateContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11381A4855B9C7196A1459F7 /* StateContractTests.swift */; };
 		F1FD211718289433113834EE /* OnDeviceModelCallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C40BEEAF7A2E51764899BF1 /* OnDeviceModelCallTests.swift */; };
+		F3038B8335B08CE92CC28583 /* BackendCapsule.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4585FEC1AC93CD744AC5BB5 /* BackendCapsule.swift */; };
 		F8CB64EA0F116E89019F6B9C /* SwiftRuntimeIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA5C80D4B0433277E4CE7C51 /* SwiftRuntimeIntegrationTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -51,31 +73,51 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		00E603137850F795FF0FA226 /* HistorySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySheet.swift; sourceTree = "<group>"; };
 		0960F08F2DAED157F5F8A7E1 /* Tests.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Tests.xcconfig; sourceTree = "<group>"; };
 		0CACF8EF234D176628E9EA51 /* EngineCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineCatalog.swift; sourceTree = "<group>"; };
+		11381A4855B9C7196A1459F7 /* StateContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateContractTests.swift; sourceTree = "<group>"; };
 		11B1A1E8D6508EFA21F583AA /* FairyStudioTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FairyStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1AA8A8FC2C4DEBF781B18E8C /* StateContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateContract.swift; sourceTree = "<group>"; };
+		1ABCF0195467F9865CD45549 /* DiagnosticCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticCardView.swift; sourceTree = "<group>"; };
+		2223E7E7EDD1ED5326BAB59C /* WorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceView.swift; sourceTree = "<group>"; };
+		2292BEDE8D3DE04DFB2C3A8C /* WorkspaceModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceModel.swift; sourceTree = "<group>"; };
 		2C40BEEAF7A2E51764899BF1 /* OnDeviceModelCallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnDeviceModelCallTests.swift; sourceTree = "<group>"; };
+		345E66A4D2EC872221F64774 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		3BC724D5CDF510857D53BC64 /* AssistantSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantSettingsModel.swift; sourceTree = "<group>"; };
 		43969A448E9DDE4DDFFF8E66 /* FairyStudioUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FairyStudioUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		43F805AD0B53C1EB4580B45E /* StudioModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudioModel.swift; sourceTree = "<group>"; };
-		512DC45DD42A18B5E5933E5D /* RunLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLabView.swift; sourceTree = "<group>"; };
+		4FF5FED6D76838A2D1DF98FB /* AssistantSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantSidebarView.swift; sourceTree = "<group>"; };
 		515E8340B54B125ECA8AA6F2 /* FairyStudioUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FairyStudioUITests.swift; sourceTree = "<group>"; };
+		5260D72A0780691652EB1E78 /* AgentRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRunner.swift; sourceTree = "<group>"; };
 		656AEBF440C8105B9E13940C /* RunCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunCoordinatorTests.swift; sourceTree = "<group>"; };
+		66220F3E9AF37156254A2A92 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		67E39D97207242D5C61597C8 /* BridgeTextFieldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeTextFieldTests.swift; sourceTree = "<group>"; };
 		6DA2CE4142E9EF8653A19740 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		742F83439AAC90BF7DFF208B /* AssistantPanelHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantPanelHost.swift; sourceTree = "<group>"; };
 		823DB18339B48E4C6934244E /* FairyCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = FairyCore; path = Packages/FairyCore; sourceTree = SOURCE_ROOT; };
 		8BDC8022846202BC836DC372 /* TemplateLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateLoader.swift; sourceTree = "<group>"; };
+		8D7BB2A1B5B76A7C1165A379 /* ChangeCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCardView.swift; sourceTree = "<group>"; };
 		9FF134EFBBEEC76AC105BBFA /* FairyStudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FairyStudioApp.swift; sourceTree = "<group>"; };
+		A6ED3526EE6ED3CB82BA218D /* Conversations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversations.swift; sourceTree = "<group>"; };
 		A77135EEADB3D7EFD1BEAE27 /* FairyStudio.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FairyStudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A9465B8319E016F6EA595655 /* OpenRouterKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterKeychain.swift; sourceTree = "<group>"; };
 		B40329B79CE2082B15EE8B1F /* FoundationModelsOnSimulatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelsOnSimulatorTests.swift; sourceTree = "<group>"; };
+		B7C9D09F826A184389BCAAA5 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		BBEAB5DC23130FA4AE0BADEC /* ProcessMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMemory.swift; sourceTree = "<group>"; };
 		BD098DE36E7C42F6E1EEEDA6 /* Tests-Verify.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Tests-Verify.xcconfig"; sourceTree = "<group>"; };
+		C51D6EE93ADABC63214B3762 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		CA5C80D4B0433277E4CE7C51 /* SwiftRuntimeIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftRuntimeIntegrationTests.swift; sourceTree = "<group>"; };
+		CFE7CAF79CEFC71CCE3B0B81 /* FileTreeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTreeView.swift; sourceTree = "<group>"; };
 		D9EC09769427D98CB54142B2 /* AIStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIStatusView.swift; sourceTree = "<group>"; };
 		E066AB756A0EF8ECDBCB2850 /* CodeTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeTextView.swift; sourceTree = "<group>"; };
+		E0E29B3211143153658EAF50 /* AssistantSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantSession.swift; sourceTree = "<group>"; };
+		E4585FEC1AC93CD744AC5BB5 /* BackendCapsule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendCapsule.swift; sourceTree = "<group>"; };
+		E74F1022A1932FBF2C7C762D /* WorkspaceLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceLayoutTests.swift; sourceTree = "<group>"; };
 		EE8A657340E5DCEB185B7B22 /* BridgeLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeLifecycleTests.swift; sourceTree = "<group>"; };
 		F05FD20696290A2DE70078A4 /* LabPanes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabPanes.swift; sourceTree = "<group>"; };
 		F4D39DC9394EDADCFC235A99 /* Verify-iOS26.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Verify-iOS26.xcconfig"; sourceTree = "<group>"; };
 		F61AD1653C2FA181C63029D2 /* AIStatusModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIStatusModel.swift; sourceTree = "<group>"; };
+		F75768CB6222C0443EBC0863 /* AssistantSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantSessionTests.swift; sourceTree = "<group>"; };
 		F80DC619C0470AFB398EDB8F /* Templates */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Templates; sourceTree = SOURCE_ROOT; };
 		FCACDA912087B42BF77C82FA /* RunCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunCoordinator.swift; sourceTree = "<group>"; };
 		FFCCEC416065F8B14CA01B36 /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
@@ -90,6 +132,8 @@
 				DC779299672385211D043C1E /* NativeBridge in Frameworks */,
 				D1008C0AC261767A2ABDD521 /* FoundationAI in Frameworks */,
 				7EB804B52FD225A9079B7CC6 /* SwiftRuntime in Frameworks */,
+				4D0655E4786E3B538FBB04E8 /* ProjectContracts in Frameworks */,
+				930746175CB17C8BBD088369 /* ProjectCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -145,6 +189,37 @@
 			);
 			sourceTree = "<group>";
 		};
+		687C21D91E35FB46198E1041 /* Assistant */ = {
+			isa = PBXGroup;
+			children = (
+				5260D72A0780691652EB1E78 /* AgentRunner.swift */,
+				742F83439AAC90BF7DFF208B /* AssistantPanelHost.swift */,
+				E0E29B3211143153658EAF50 /* AssistantSession.swift */,
+				3BC724D5CDF510857D53BC64 /* AssistantSettingsModel.swift */,
+				4FF5FED6D76838A2D1DF98FB /* AssistantSidebarView.swift */,
+				E4585FEC1AC93CD744AC5BB5 /* BackendCapsule.swift */,
+				8D7BB2A1B5B76A7C1165A379 /* ChangeCardView.swift */,
+				66220F3E9AF37156254A2A92 /* ChatView.swift */,
+				A6ED3526EE6ED3CB82BA218D /* Conversations.swift */,
+				1ABCF0195467F9865CD45549 /* DiagnosticCardView.swift */,
+				A9465B8319E016F6EA595655 /* OpenRouterKeychain.swift */,
+				B7C9D09F826A184389BCAAA5 /* SettingsView.swift */,
+			);
+			path = Assistant;
+			sourceTree = "<group>";
+		};
+		9163A358B4BF36CDB85FA66E /* Workspace */ = {
+			isa = PBXGroup;
+			children = (
+				C51D6EE93ADABC63214B3762 /* DesignSystem.swift */,
+				CFE7CAF79CEFC71CCE3B0B81 /* FileTreeView.swift */,
+				1AA8A8FC2C4DEBF781B18E8C /* StateContract.swift */,
+				2292BEDE8D3DE04DFB2C3A8C /* WorkspaceModel.swift */,
+				2223E7E7EDD1ED5326BAB59C /* WorkspaceView.swift */,
+			);
+			path = Workspace;
+			sourceTree = "<group>";
+		};
 		A57628177A4F506F07E293CA /* FairyStudioUITests */ = {
 			isa = PBXGroup;
 			children = (
@@ -157,8 +232,10 @@
 			isa = PBXGroup;
 			children = (
 				FB70451139DD5836618C8C57 /* AI */,
+				687C21D91E35FB46198E1041 /* Assistant */,
 				B7DD55C408AEBC767A962139 /* Runtime */,
 				EA4208E418CB87B1A32C1900 /* Views */,
+				9163A358B4BF36CDB85FA66E /* Workspace */,
 				9FF134EFBBEEC76AC105BBFA /* FairyStudioApp.swift */,
 			);
 			path = App;
@@ -170,7 +247,6 @@
 				0CACF8EF234D176628E9EA51 /* EngineCatalog.swift */,
 				BBEAB5DC23130FA4AE0BADEC /* ProcessMemory.swift */,
 				FCACDA912087B42BF77C82FA /* RunCoordinator.swift */,
-				43F805AD0B53C1EB4580B45E /* StudioModel.swift */,
 				8BDC8022846202BC836DC372 /* TemplateLoader.swift */,
 			);
 			path = Runtime;
@@ -179,13 +255,16 @@
 		B958353532083A5099CD455F /* FairyStudioTests */ = {
 			isa = PBXGroup;
 			children = (
+				F75768CB6222C0443EBC0863 /* AssistantSessionTests.swift */,
 				EE8A657340E5DCEB185B7B22 /* BridgeLifecycleTests.swift */,
 				67E39D97207242D5C61597C8 /* BridgeTextFieldTests.swift */,
 				B40329B79CE2082B15EE8B1F /* FoundationModelsOnSimulatorTests.swift */,
 				2C40BEEAF7A2E51764899BF1 /* OnDeviceModelCallTests.swift */,
 				656AEBF440C8105B9E13940C /* RunCoordinatorTests.swift */,
+				11381A4855B9C7196A1459F7 /* StateContractTests.swift */,
 				CA5C80D4B0433277E4CE7C51 /* SwiftRuntimeIntegrationTests.swift */,
 				FFCCEC416065F8B14CA01B36 /* TestSupport.swift */,
+				E74F1022A1932FBF2C7C762D /* WorkspaceLayoutTests.swift */,
 			);
 			path = FairyStudioTests;
 			sourceTree = "<group>";
@@ -203,8 +282,9 @@
 			isa = PBXGroup;
 			children = (
 				E066AB756A0EF8ECDBCB2850 /* CodeTextView.swift */,
+				00E603137850F795FF0FA226 /* HistorySheet.swift */,
 				F05FD20696290A2DE70078A4 /* LabPanes.swift */,
-				512DC45DD42A18B5E5933E5D /* RunLabView.swift */,
+				345E66A4D2EC872221F64774 /* LibraryView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -239,6 +319,8 @@
 				30092714575799E1A9065C1C /* NativeBridge */,
 				7DDC7F65BE657E7F121A7BBE /* FoundationAI */,
 				81708123B1FDC2D065E61CA0 /* SwiftRuntime */,
+				0ACB0E5C9D044D382DD9B651 /* ProjectContracts */,
+				6AD95B5ABD549CE4CA45D992 /* ProjectCore */,
 			);
 			productName = FairyStudio;
 			productReference = A77135EEADB3D7EFD1BEAE27 /* FairyStudio.app */;
@@ -352,15 +434,32 @@
 			files = (
 				E60D35FA75E0F8DE12DC2E40 /* AIStatusModel.swift in Sources */,
 				276F6A8A129F930854017552 /* AIStatusView.swift in Sources */,
+				C48A8C59E046264BA1AC5640 /* AgentRunner.swift in Sources */,
+				C9A2681F011750D4BFD3E16B /* AssistantPanelHost.swift in Sources */,
+				C17D4B80894465279B57CC06 /* AssistantSession.swift in Sources */,
+				6F202F04B1AE777E26B50D61 /* AssistantSettingsModel.swift in Sources */,
+				DC7FA491259DDD77FB82B5B2 /* AssistantSidebarView.swift in Sources */,
+				F3038B8335B08CE92CC28583 /* BackendCapsule.swift in Sources */,
+				A5FC47CE874EB6CAB8366729 /* ChangeCardView.swift in Sources */,
+				21131E4F0AD36443825169B5 /* ChatView.swift in Sources */,
 				BFFBE4BA66B5520FC775A94D /* CodeTextView.swift in Sources */,
+				E27A3F0D26C7912EC5605CD1 /* Conversations.swift in Sources */,
+				8051607A5C811593177D0414 /* DesignSystem.swift in Sources */,
+				4F73F9999280D5D5C988400D /* DiagnosticCardView.swift in Sources */,
 				5C849B1B57B20316A67ACB0A /* EngineCatalog.swift in Sources */,
 				C80D79E7933D2A456DAC563E /* FairyStudioApp.swift in Sources */,
+				2600EA1EB565715D48472C3E /* FileTreeView.swift in Sources */,
+				209B88F0D4F34AD665F6E1B9 /* HistorySheet.swift in Sources */,
 				D27CCB93B2BB3CECA025620D /* LabPanes.swift in Sources */,
+				9BC4EAD08E36E679C1CF0F1F /* LibraryView.swift in Sources */,
+				535E82B7B168841061F4E4DE /* OpenRouterKeychain.swift in Sources */,
 				8A68BDDB6D2629EA7D29646F /* ProcessMemory.swift in Sources */,
 				39E59F07FA4C5C5BBA01A465 /* RunCoordinator.swift in Sources */,
-				3882C012E31CD77F38109C0B /* RunLabView.swift in Sources */,
-				BDA507965C5B9F85801A4767 /* StudioModel.swift in Sources */,
+				6F096D6187BAE0325E8F4990 /* SettingsView.swift in Sources */,
+				BF6AC5FC7C9C2831842F4AC1 /* StateContract.swift in Sources */,
 				0DE9587B88A86EC7F273A204 /* TemplateLoader.swift in Sources */,
+				CCF8F887CA4850CE0C633C0A /* WorkspaceModel.swift in Sources */,
+				97F9ACFB6FE12191170E619B /* WorkspaceView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -368,13 +467,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E60F982DF1DFF67B38DC7540 /* AssistantSessionTests.swift in Sources */,
 				E7AEF62A8CA0DC53F4BAEDC3 /* BridgeLifecycleTests.swift in Sources */,
 				BC37833400F58DA1344510E6 /* BridgeTextFieldTests.swift in Sources */,
 				38CAB9327BB1E4232AF1586E /* FoundationModelsOnSimulatorTests.swift in Sources */,
 				F1FD211718289433113834EE /* OnDeviceModelCallTests.swift in Sources */,
 				1176307210F83D6E39A85995 /* RunCoordinatorTests.swift in Sources */,
+				EF5E44D31C3AA8B3DEEFA60C /* StateContractTests.swift in Sources */,
 				F8CB64EA0F116E89019F6B9C /* SwiftRuntimeIntegrationTests.swift in Sources */,
 				1EE3ECF5B1549A19740EF01A /* TestSupport.swift in Sources */,
+				2A02C7F2DCBF37D95514752B /* WorkspaceLayoutTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -388,7 +490,7 @@
 		};
 		340DD6A4AF9B166141E316B2 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			productRef = "TEMP_F7B5B7B2-0248-4C27-BCF8-52A46B6A3E27" /* DevFixtures */;
+			productRef = "TEMP_6E2899D7-A64B-4D4F-94C9-41066F08EF7B" /* DevFixtures */;
 		};
 		827ECB72BEC375293A70FC78 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -897,9 +999,17 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		0ACB0E5C9D044D382DD9B651 /* ProjectContracts */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ProjectContracts;
+		};
 		30092714575799E1A9065C1C /* NativeBridge */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = NativeBridge;
+		};
+		6AD95B5ABD549CE4CA45D992 /* ProjectCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ProjectCore;
 		};
 		7DDC7F65BE657E7F121A7BBE /* FoundationAI */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -913,7 +1023,7 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = RuntimeContracts;
 		};
-		"TEMP_F7B5B7B2-0248-4C27-BCF8-52A46B6A3E27" /* DevFixtures */ = {
+		"TEMP_6E2899D7-A64B-4D4F-94C9-41066F08EF7B" /* DevFixtures */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DevFixtures;
 		};

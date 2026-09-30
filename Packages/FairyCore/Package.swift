@@ -34,7 +34,7 @@ let package = Package(
             .product(name: "SwiftDiagnostics", package: "swift-syntax"),
         ]),
         .target(name: "NativeBridge", dependencies: ["RuntimeContracts"]),
-        .target(name: "FoundationAI", dependencies: ["RuntimeContracts"]),
+        .target(name: "FoundationAI", dependencies: ["RuntimeContracts", "ProjectContracts"]),
         .target(name: "ProjectContracts", dependencies: ["RuntimeContracts"]),
         .target(name: "ProjectCore", dependencies: ["ProjectContracts", "RuntimeContracts"]),
         .target(name: "DevFixtures", dependencies: ["RuntimeContracts"]),
@@ -42,9 +42,8 @@ let package = Package(
         .testTarget(name: "RuntimeContractsTests", dependencies: ["RuntimeContracts"]),
         .testTarget(name: "SwiftRuntimeTests", dependencies: ["SwiftRuntime", "RuntimeContracts"], resources: [.copy("Fixtures")]),
         .testTarget(name: "NativeBridgeTests", dependencies: ["NativeBridge", "RuntimeContracts"]),
-        .testTarget(name: "FoundationAITests", dependencies: ["FoundationAI"]),
+        .testTarget(name: "FoundationAITests", dependencies: ["FoundationAI", "ProjectContracts", "RuntimeContracts"]),
         .testTarget(name: "ProjectContractsTests", dependencies: ["ProjectContracts", "RuntimeContracts"]),
-        // SwiftRuntime 仅供测试证明模板可运行；ProjectCore 本身不依赖解释器。
         .testTarget(name: "ProjectCoreTests", dependencies: ["ProjectCore", "ProjectContracts", "RuntimeContracts", "SwiftRuntime"]),
     ],
     swiftLanguageModes: [.v6]

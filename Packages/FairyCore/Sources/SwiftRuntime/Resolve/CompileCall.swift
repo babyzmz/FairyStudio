@@ -756,6 +756,28 @@ extension Compiler {
             compileExpr(args[1].expr, expected: .double)
             emit(.callBuiltin(name: name, labels: labels))
             return .double
+        case "zip":
+            use("stdlib.zip")
+            guard args.count == 2, labels.allSatisfy({ $0 == nil }) else {
+                error(.typeCheck, "zip 需要两个无标签的序列参数。", call)
+                emit(.pushVoid)
+                return .unknown
+            }
+            _ = compileExpr(args[0].expr, expected: nil)
+            _ = compileExpr(args[1].expr, expected: nil)
+            emit(.callBuiltin(name: "zip", labels: [nil, nil]))
+            return .array(.tuple([.unknown, .unknown], ["0", "1"]))
+        case "repeatElement":
+            use("stdlib.repeatElement")
+            guard args.count == 2, labels[0] == nil, labels[1] == "count" else {
+                error(.typeCheck, "repeatElement 需要 (repeating:count:)。", call)
+                emit(.pushVoid)
+                return .unknown
+            }
+            let te = compileExpr(args[0].expr, expected: nil)
+            compileExpr(args[1].expr, expected: .int)
+            emit(.callBuiltin(name: "repeatElement", labels: labels))
+            return .array(te)
         default:
             break
         }

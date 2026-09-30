@@ -21,6 +21,16 @@ extension Stdlib {
         case .double(let d):
             switch name {
             case "rounded()": return .double(d.rounded())
+            case "rounded(_:)":
+                guard case .symbol(let rule) = args[0] else { break }
+                switch rule {
+                case "up": return .double(d.rounded(.up))
+                case "down": return .double(d.rounded(.down))
+                case "toNearestOrAwayFromZero": return .double(d.rounded(.toNearestOrAwayFromZero))
+                case "toNearestOrEven": return .double(d.rounded(.toNearestOrEven))
+                default:
+                    throw VMError.unsupported("rounded 不支持舍入规则 '\(rule)'", capabilityID: "stdlib.Double.rounded")
+                }
             case "squareRoot()": return .double(d.squareRoot())
             case "truncatingRemainder(dividingBy:)":
                 guard case .double(let y) = args[0] else { break }
@@ -206,12 +216,26 @@ extension Stdlib {
             for e in a where try ValueOps.truthy(try callElement(vm, args[0], e)) { return e }
             return Value.none
         case "firstIndex(of:)":
+            // Range 的索引即元素值本身：firstIndex(of:) 返回区间索引而非偏移
+            //（(1..<6).firstIndex(of: 3) == 3，宿主差分验证）。
+            if case .range(let r) = receiver, case .int(let x) = args[0], x >= r.lower, x < r.endExclusive {
+                return .int(x)
+            }
             for (i, e) in a.enumerated() where try ValueOps.equals(e, args[0]) { return .int(i) }
             return Value.none
         case "firstIndex(where:)":
+            // Range 同上：闭包命中元素的索引是元素值。
+            if case .range(let r) = receiver, case .int(let x) = args[0],
+               x >= r.lower, x < r.endExclusive,
+               try ValueOps.truthy(try callElement(vm, args[0], .int(x))) {
+                return .int(x)
+            }
             for (i, e) in a.enumerated() where try ValueOps.truthy(try callElement(vm, args[0], e)) { return .int(i) }
             return Value.none
         case "lastIndex(of:)":
+            if case .range(let r) = receiver, case .int(let x) = args[0], x >= r.lower, x < r.endExclusive {
+                return .int(x)
+            }
             for (i, e) in a.enumerated().reversed() where try ValueOps.equals(e, args[0]) { return .int(i) }
             return Value.none
         case "min()":
@@ -352,6 +376,23 @@ extension Stdlib {
             }
         case "Date":
             if labels.isEmpty || labels == ["now"] { return .date(Date()) }
+        case "zip":
+            guard args.count == 2,
+                  let a = try elements(vm, args[0]), let b = try elements(vm, args[1]) else { break }
+            let n = min(a.count, b.count)
+            var out: [Value] = []
+            for i in 0..<n {
+                out.append(.tuple(TupleValue(elements: [a[i], b[i]], labels: [nil, nil])))
+            }
+            try vm.meter.checkCollection(out.count)
+            return .array(out)
+        case "repeatElement":
+            guard case .int(let n) = args[1] else { break }
+            guard n >= 0 else {
+                throw VMError.trap("repeatElement 的次数不能为负（Swift: Requirement failed: count >= 0）")
+            }
+            try vm.meter.checkCollection(n)
+            return .array(Array(repeating: args[0], count: n))
         case "Array":
             if labels == [nil], let e = try elements(vm, args[0]) { return .array(e) }
             if labels == ["repeating", "count"] {

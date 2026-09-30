@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "logic-lab",
+  "displayName": "逻辑门实验",
+  "description": "两个输入开关 + 四种门：先猜输出再验证，真值表就在旁边。",
+  "category": "实验室",
+  "entrySymbol": "LogicLabView",
+  "files": [
+    {
+      "path": "Sources/Models/LogicModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

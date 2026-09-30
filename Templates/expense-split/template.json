@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "expense-split",
+  "displayName": "排练费用分摊",
+  "description": "成员按实际参加时长分摊费用：加人、改时长，分摊实时重算。",
+  "category": "小工具",
+  "entrySymbol": "ExpenseSplitView",
+  "files": [
+    {
+      "path": "Sources/Models/SplitModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

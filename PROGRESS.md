@@ -1,27 +1,29 @@
 # 进度（长任务续跑入口）
 
-- 当前阶段：**M0 收尾**——M0-A / M0-B / M0-C 已完成模拟器与 macOS 口径验证；iPhone 实机复验由主代理执行（M0-C 包内受阻于签名账户）。下一阶段 M1。
-- 环境结论（2026-09-24 复核）：Xcode 26.3 / iOS 26.2 SDK / macOS 15.7.4；无 iOS 27 SDK；PCC API 缺失；iPhone 16 Pro Max（iOS 27.0）有线连接后 `ddiServicesAvailable: true`，实机阻塞点是签名账户（Xcode 账户只有 Team 978L5PZ2LT，配置要求 66F6479Y4Q）；iPad Pro 11 (M5) 已配对 iOS 27.0 但 tunnel 不可用。详见 docs/ENVIRONMENT.md「实测变化」。
+- 当前阶段：**W 阶段整合完成**（2026-09-30）。W1 项目/工作区 + W2 助手闭环 + W3 解释器广度
+  全部在 main 工作树实现并测试；UI 已重排为"左（会话历史/设置）—中（聊天）—右（运行预览）"三面板。
+- 已验证（2026-09-30）：
+  - `scripts/spm.sh test`：183 项全绿（SwiftRuntime 101 含 36 个差分夹具 + W4 标准库、
+    ProjectCore 22、FoundationAI 49 含 OpenRouter 14 项 mock、NativeBridge 21 等）；
+  - iOS 27 模拟器（iPhone 17 Pro iOS27 / iPad Pro 11 iOS27，已创建）：App 单测 43/43、
+    UI 测试三面板/全流程通过；真实模型调用在模拟器仍不可用（属预期）；
+  - 标准库 supported 72 → 138（docs/SWIFT_SUPPORT.md 已重生成）；模板 23 个按 8 类分组。
+- 主要能力：agent 工具循环（设备端）、[[MORE]] 自动续作、OpenRouter 云端后端（Keychain 存 Key、
+  独立授权、逐类错误映射，见 docs/OPENROUTER.md）、多会话历史（内存态）。
+- 未完成 / 待实机：
+  - **OpenRouter 真实 API 验证**（需用户 Key：设 FAIRY_OPENROUTER_LIVE=1 + FAIRY_OPENROUTER_KEY
+    跑门控测试；>4096 token 请求 / 多文件生成 / 失败恢复 / 取消不落盘的实机口径）；
+  - iPhone 实机 AI_EVAL 三固定任务（签名账户阻塞仍是前置，见下）；
+  - 对话历史持久化（内存态，待 M3 定序列化边界）、真实 FoundationModels Tool 挂接已做（agent），
+    候选隔离运行仍在 M3；
+  - W4 网页运行时 / 数据持久化 / 导出；W5 视觉统一与打磨；之后 M1–M5 细化验收。
+- 环境注记：iOS 27.0 模拟器运行时已装但默认无设备（已手工创建 iPhone 17 Pro iOS27 /
+  iPad Pro 11 iOS27）；`build-verify.sh` 需 `FAIRY_OS=26.3.1`（脚本已支持）指向 26.3 设备。
+- 历史环境结论（M0 期）：iPhone 实机签名账户阻塞（Team 978L5PZ2LT ≠ 要求 66F6479Y4Q）未解决；
+  详见 docs/ENVIRONMENT.md。
 
-## 已验证
-- macOS `swift test`（Packages/FairyCore）：103 tests / 17 suites 通过。
-- `scripts/build-verify.sh`：iPhone 17 Pro 与 iPad Pro 11 (M5) 模拟器 BUILD / TEST SUCCEEDED；FairyStudioTests 28/28、FairyStudioUITests 10/10（全部真实 SwiftRuntime 引擎）。
-- 端到端：Counter 模板 Count 0→1→2、状态序列 idle→validating→preparing→running→stopping→stopped、改源码重跑、文件顺序无关、class 继承 → `syntax.class`、除零 → runtimeTrap、无限循环停止（App 内 6.4 / 11.5 ms）、默认预算中断、30 次运行—停止实例 / 线程 / 任务 0。
-- 夹具引擎不在 App 任何配置中（`scripts/check-release-link.sh` failures=0）。
-- 契约对齐（CR-1 / B-7 / B-5）双方实现 + 测试；RuntimeContracts 源码未改。
-- 汇总：verification/M0.md、verification/ACCEPTANCE.md；各包细节：docs/progress/M0-A.md、M0-B.md、M0-C.md。
+## 历史记录
 
-## 未完成
-- iPhone 实机复验、实机模型可用性与一次真实本地调用（主代理执行；脚本 `scripts/device-verify.sh`，测试 `OnDeviceModelCallTests`）。
-- 产品配置（iOS 27.0）运行：需 Xcode 27 / iOS 27 SDK（macOS 26.6+）。
-- PCC：SDK 缺失 + 资格未核对。
-- sheet / alert / 导航 / Slider 真实引擎端到端 UI（M2）。
-- verification/ACCEPTANCE.md 需按任务书第 20 节原文核对条目。
-
-## 下一步
-- M1：ProjectCore（.mojoproject、ZIP 导入校验、快照 / 事务）+ TextKit 2 编辑器（替换 M0 的 CodeTextView）+ iPhone / iPad 工作区布局。
-
-## 暂停记录（2026-09-27，用户周额度用尽）
-- W1/W2/W3 三个子代理在启动后约 20–30 分钟被停止。W2、W3 尚无文件改动；W1 的少量半成品（ProjectCore/Model 目录、Package.swift 依赖）已提交在分支 `worktree-agent-a2c107043d7f2f31e`（可合并或丢弃，量很小）。
-- 主分支状态：M0 全部完成并验证；ProjectContracts 已定义并测试；Xcode 27 环境已核验；产品配置可在实机构建。
-- **续跑步骤**：1) `git worktree prune`；2) 按 docs/PLAN_W.md 的 W1 / W2 / W3 节重新派发三个 Opus 子代理（提示词要点：环境 = Xcode 27 / Swift 6.4 / iOS 27 SDK / 模拟器 26.3；`scripts/spm.sh test`；实机 `id=00008140-000E2C523A52801C`，实机不跑 XCUITest；W1↔W2 接口 `AssistantPanelHost(project:coordinator:initialPrompt:)` 与 RunCoordinator 公开 API）；3) 可选：下载 iOS 27 模拟器运行时。
+- M0 阶段（解释器、桥接、协调器、模型可用性）与更早的环境/验证记录见 git 历史
+  与 `docs/progress/`、`verification/`；W1–W3 各包记录见 `docs/progress/W1.md`、
+  `docs/progress/W2.md`、`docs/progress/W3.md`。

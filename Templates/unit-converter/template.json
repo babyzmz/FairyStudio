@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "unit-converter",
+  "displayName": "单位换算器",
+  "description": "长度与重量两组单位，滑杆输入即时换算：固定规则执行，不需要 AI 参与。",
+  "category": "小工具",
+  "entrySymbol": "UnitConverterView",
+  "files": [
+    {
+      "path": "Sources/Models/ConverterModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

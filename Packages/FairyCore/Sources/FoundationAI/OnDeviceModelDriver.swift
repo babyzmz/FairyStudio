@@ -91,6 +91,29 @@ public enum FoundationModelsBridge {
         return ModelStatusMapping.failure(for: kind, detail: detail)
     }
 
+    /// iOS 27 起，上下文超限等错误改从 `LanguageModelError` 抛出（旧的
+    /// `GenerationError.exceededContextWindowSize` 不再覆盖）。
+    /// 不映射它，`exceededContextWindowSize` 退避就永远不触发——实机会把
+    /// "provided N token, maximum allowed is 4096" 当系统错误直接抛给用户。
+    @available(iOS 27.0, macOS 27.0, *)
+    public static func failure(for error: LanguageModelError) -> ModelTaskFailure {
+        switch error {
+        case let .contextSizeExceeded(context):
+            return .exceededContextWindowSize(
+                "provided \(context.tokenCount) tokens, maximum allowed is \(context.contextSize)")
+        case let .rateLimited(context):
+            return .rateLimited(String(describing: context))
+        case let .guardrailViolation(context):
+            return .guardrailViolation(String(describing: context))
+        case let .refusal(context):
+            return .refusal(String(describing: context))
+        case let .timeout(context):
+            return .systemError(String(describing: context))
+        default:
+            return .systemError(String(describing: error))
+        }
+    }
+
     private static func debugDetail(of error: LanguageModelSession.GenerationError) -> String {
         switch error {
         case let .exceededContextWindowSize(context), let .assetsUnavailable(context), let .guardrailViolation(context),
@@ -119,7 +142,11 @@ public enum FoundationModelsBridge {
                         continuation.finish(throwing: ModelTaskFailure.concurrentRequests("会话已有在途请求"))
                         return
                     }
-                    for try await snapshot in session.streamResponse(to: prompt) {
+                    // 输出 token 上限 = 模型上下文上限（指令 + 提示 + 输出共享；首代端上模型 4096）。
+                    // 框架默认的输出上限更保守，长 JSON 会在中途被截断；显式提到上限后，
+                    // 真正的约束只剩上下文窗口本身。contextSize 自 iOS 26.0 可读（见 docs/APPLE_MODELS.md）。
+                    let options = GenerationOptions(maximumResponseTokens: SystemLanguageModel.default.contextSize)
+                    for try await snapshot in session.streamResponse(to: prompt, options: options) {
                         continuation.yield(snapshot.content)
                     }
                     continuation.finish()
@@ -128,6 +155,11 @@ public enum FoundationModelsBridge {
                 } catch is CancellationError {
                     continuation.finish(throwing: CancellationError())
                 } catch {
+                    // iOS 27：上下文超限等从 LanguageModelError 抛出，必须映射进退避链路。
+                    if #available(iOS 27.0, macOS 27.0, *), let modelError = error as? LanguageModelError {
+                        continuation.finish(throwing: Self.failure(for: modelError))
+                        return
+                    }
                     continuation.finish(throwing: ModelTaskFailure.systemError(String(describing: error)))
                 }
             }

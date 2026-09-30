@@ -9,7 +9,7 @@ import SwiftRuntime
 @Suite("SwiftRuntime 接入（真实引擎）", .serialized)
 struct SwiftRuntimeIntegrationTests {
     private func counterTemplate() throws -> ProjectTemplate {
-        try ProjectTemplate.load(named: "Counter")
+        try ProjectTemplate.load(named: "counter")
     }
 
     private func program(_ template: ProjectTemplate, reversed: Bool = false) -> ProgramSource {
@@ -51,9 +51,6 @@ struct SwiftRuntimeIntegrationTests {
         #expect(template.entry == .rootView(symbol: "ContentView"))
         #expect(template.files.map(\.path) == ["Sources/Models/Counter.swift", "Sources/Views/ContentView.swift"])
         #expect(template.files.allSatisfy { !$0.contents.isEmpty })
-        let studio = StudioModel()
-        #expect(studio.files.count == 2)
-        #expect(studio.coordinator.engine is SwiftRuntimeEngine)
     }
 
     @Test("运行 → Count: 0 → Increment ×2 → Count: 2 → 停止；状态与终止原因来自真实事件")
@@ -149,9 +146,9 @@ struct SwiftRuntimeIntegrationTests {
         files[0].contents = files[0].contents.replacingOccurrences(of: "count += step", with: "while true { count += step }")
         let source = ProgramSource(moduleName: "Experiment", files: files)
 
-        // 1) 长预算：只有用户停止能结束它。
+        // 1) 长预算：只有用户停止能结束它（DEBUG 的 -fairy.budget long 等价构造）。
         let coordinator = RunCoordinator(engine: SwiftRuntimeEngine())
-        let long = StudioModel.budget(from: ["app", "-fairy.budget", "long"]).0
+        let long = ExecutionBudget(maxSteps: Int.max / 2, sliceWallClock: .seconds(3600))
         await coordinator.run(source, entry: template.entry, budget: long).value
         #expect(await waitUntil { coordinator.state == .running && coordinator.tree != nil })
         coordinator.send(.action(try #require(button(labeled: "Increment", in: coordinator.tree))))

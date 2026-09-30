@@ -93,15 +93,15 @@ struct AppTemplateConsistencyTests {
         let repoRoot = URL(fileURLWithPath: #filePath)   // …/Packages/FairyCore/Tests/SwiftRuntimeTests/CounterFixtureTests.swift
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        let template = repoRoot.appendingPathComponent("Templates/Counter")
+        let template = repoRoot.appendingPathComponent("Templates/counter")
         let fixture = try TestSupport.loadDirectory("counter")
         #expect(fixture.count == 2)
         for file in fixture {
             let copy = try String(contentsOf: template.appendingPathComponent(file.path), encoding: .utf8)
-            #expect(copy == file.contents, "Templates/Counter/\(file.path) 与夹具不一致")
+            #expect(copy == file.contents, "Templates/counter/\(file.path) 与夹具不一致")
         }
         let manifest = try String(contentsOf: template.appendingPathComponent("template.json"), encoding: .utf8)
         for file in fixture { #expect(manifest.contains("\"\(file.path)\"")) }
-        #expect(manifest.contains("\"rootView\": \"ContentView\""))
+        #expect(manifest.contains("\"entrySymbol\": \"ContentView\""))
     }
 }

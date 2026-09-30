@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "delivery-report",
+  "displayName": "交付报告生成",
+  "description": "填几个字段，按固定模板组装交付报告：负责人确认后的内容才进报告。",
+  "category": "现场工作",
+  "entrySymbol": "DeliveryReportView",
+  "files": [
+    {
+      "path": "Sources/Models/ReportModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

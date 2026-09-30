@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "quiz-game",
+  "displayName": "问答挑战",
+  "description": "三题小挑战：选择后立即判分并解释，最后给总评。题目与规则分离。",
+  "category": "创意",
+  "entrySymbol": "QuizView",
+  "files": [
+    {
+      "path": "Sources/Models/QuizModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

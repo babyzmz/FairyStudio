@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "task-panel",
+  "displayName": "方案优先级面板",
+  "description": "把候选方案摆出来：勾选、调优先级，一键按当前选择生成执行计划。",
+  "category": "任务面板",
+  "entrySymbol": "TaskPanelView",
+  "files": [
+    {
+      "path": "Sources/Models/OptionModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

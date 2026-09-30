@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "device-dashboard",
+  "displayName": "设备数据面板",
+  "description": "12 个时间点的温度读数（确定性模拟）：状态灯、进度条与阈值告警。",
+  "category": "练习",
+  "entrySymbol": "DeviceDashboardView",
+  "files": [
+    {
+      "path": "Sources/Models/DashboardModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

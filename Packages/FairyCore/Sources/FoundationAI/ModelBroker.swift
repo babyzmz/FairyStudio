@@ -14,20 +14,46 @@ public actor ModelBroker {
 
     private let drivers: [ModelBackend: any ModelBackendDriver]
     private let consent: CloudConsentStore
+    /// OpenRouter 独立授权门（第三方云端，默认 nil = 未授权）。
+    private let openRouterConsent: OpenRouterConsentStore?
     public private(set) var isResponding = false
     private var currentTask: Task<ModelTaskOutcome, Never>?
     private var cancelRequested = false
 
-    public init(drivers: [any ModelBackendDriver], consent: CloudConsentStore) {
+    public init(drivers: [any ModelBackendDriver], consent: CloudConsentStore,
+                openRouterConsent: OpenRouterConsentStore? = nil) {
         var map: [ModelBackend: any ModelBackendDriver] = [:]
         for driver in drivers { map[driver.backend] = driver }
         self.drivers = map
         self.consent = consent
+        self.openRouterConsent = openRouterConsent
     }
 
-    /// 生产配置：设备端 Foundation Models + PCC（当前 SDK 缺失时固定 pccSDKMissing）。
-    public static func live(consent: CloudConsentStore = .standard) -> ModelBroker {
-        ModelBroker(drivers: [OnDeviceModelDriver(), PrivateCloudComputeDriver()], consent: consent)
+    /// 生产配置：设备端 Foundation Models + PCC + OpenRouter（可选云端，需用户配置 Key 并授权）。
+    /// OpenRouter 所选模型从 UserDefaults 恢复（用户在设置中显式选择，不自动切换）。
+    public static func live(consent: CloudConsentStore = .standard,
+                            openRouterConsent: OpenRouterConsentStore = .standard,
+                            openRouterKeyStore: any APIKeyStoring = InMemoryAPIKeyStore(),
+                            openRouterModelID: String? = nil) -> ModelBroker {
+        let model = openRouterModelID
+            ?? UserDefaults.standard.string(forKey: "fairy.ai.openRouter.model")
+            ?? OpenRouterCatalog.defaultModelID
+        return ModelBroker(drivers: [OnDeviceModelDriver(), PrivateCloudComputeDriver(),
+                                     OpenRouterProvider(keyStore: openRouterKeyStore, modelID: model)],
+                           consent: consent, openRouterConsent: openRouterConsent)
+    }
+
+    /// 设置页切换 OpenRouter 模型（显式操作，绝不自动切换）。
+    public func selectOpenRouterModel(_ id: String) {
+        (drivers[.openRouter] as? OpenRouterProvider)?.selectModel(id)
+    }
+
+    public var openRouterModelID: String {
+        (drivers[.openRouter] as? OpenRouterProvider)?.selectedModelID ?? OpenRouterCatalog.defaultModelID
+    }
+
+    public var hasOpenRouterConsent: Bool {
+        openRouterConsent?.hasConsented ?? false
     }
 
     public func checkAvailability(backend: ModelBackend) async -> ModelAvailability {
@@ -49,6 +75,10 @@ public actor ModelBroker {
         }
 
         if request.backend == .privateCloudCompute, !consent.hasConsented {
+            return .failed(.cloudConsentRequired)
+        }
+        // 第三方云端独立授权：未授权时绝不发起请求（连 HTTP 都不发）。
+        if request.backend == .openRouter, openRouterConsent?.hasConsented != true {
             return .failed(.cloudConsentRequired)
         }
         guard let driver = drivers[request.backend] else {

@@ -27,13 +27,14 @@ let knownUnsupportedTypes: Set<String> = [
 ]
 
 let knownUnsupportedFunctions: Set<String> = [
-    "withAnimation", "zip", "repeatElement", "sequence", "type", "dump", "debugPrint", "swap", "readLine", "exit",
+    "withAnimation", "sequence", "type", "dump", "debugPrint", "swap", "readLine", "exit",
 ]
 
 /// 受支持的自由函数（非视图）。
 let builtinFunctionNames: Set<String> = [
     "print", "abs", "min", "max", "stride", "fatalError", "precondition", "assert",
     "sqrt", "floor", "ceil", "round", "sin", "cos", "exp", "log", "pow",
+    "zip", "repeatElement",
 ]
 
 /// 视图构造参数种类。
@@ -92,7 +93,7 @@ let viewSignatures: [String: [[ViewParam]]] = [
     "Form": [[p("content", .view)]],
     "Section": [[p(nil, .string, opt: true), p("header", .string, opt: true), p("footer", .string, opt: true), p("content", .view)]],
     "Image": [[p("systemName", .string)], [p(nil, .string)]],
-    "ProgressView": [[p(nil, .string, opt: true), p("value", .number, opt: true)]],
+    "ProgressView": [[p(nil, .string, opt: true), p("value", .number, opt: true), p("total", .number, opt: true)]],
     "Color": [[p("red", .number), p("green", .number), p("blue", .number), p("opacity", .number, opt: true)]],
 ]
 
@@ -231,6 +232,7 @@ func builtinMethodSig(_ recv: SType, _ fullName: String) -> MethodSig? {
     case ("Int", "isMultiple(of:)"): return sig([.int], cap) { _, _ in .bool }
     case ("Int", "signum()"): return sig([], cap) { _, _ in .int }
     case ("Double", "rounded()"), ("Double", "squareRoot()"): return sig([], cap) { _, _ in .double }
+    case ("Double", "rounded(_:)"): return sig([.symbol], cap) { _, _ in .double }
     case ("Double", "truncatingRemainder(dividingBy:)"): return sig([.double], cap) { _, _ in .double }
     case ("Bool", "toggle()"): return sig([], mutating: true, cap) { _, _ in .void }
     case ("Int", _), ("Double", _), ("Bool", _): return nil

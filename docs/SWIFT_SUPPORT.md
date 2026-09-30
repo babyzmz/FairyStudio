@@ -109,7 +109,7 @@
 | `syntax.statement` | 其他语句 | unsupported | — | — |  |
 | `syntax.expression` | 其他表达式 | unsupported | — | — |  |
 
-## 标准库（supported 72 / partial 67 / unsupported 66）
+## 标准库（supported 138 / partial 2 / unsupported 65）
 
 | capabilityID | 名称 | 级别 | 签名 | 测试 | 备注 |
 |---|---|---|---|---|---|
@@ -136,51 +136,51 @@
 | `stdlib.Array.first` | Array.first | **supported** | `first / first(where:)` | `differential/18_arrays.swift` `differential/19_array_higher_order.swift` |  |
 | `stdlib.Array.last` | Array.last | **supported** | `last` | `differential/18_arrays.swift` |  |
 | `stdlib.Array.firstIndex` | Array.firstIndex | **supported** | `firstIndex(of:) / firstIndex(where:)` | `differential/18_arrays.swift` `differential/19_array_higher_order.swift` |  |
-| `stdlib.Array.lastIndex` | Array.lastIndex | partial | `lastIndex(of:)` | — |  |
+| `stdlib.Array.lastIndex` | Array.lastIndex | **supported** | `lastIndex(of:)` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Array.min` | Array.min | **supported** | `min() / min(by:)` | `differential/18_arrays.swift` |  |
 | `stdlib.Array.max` | Array.max | **supported** | `max() / max(by:)` | `differential/18_arrays.swift` |  |
 | `stdlib.Array.count` | Array.count | **supported** | `count / count(where:)` | `differential/18_arrays.swift` |  |
 | `stdlib.Array.isEmpty` | Array.isEmpty | **supported** | `isEmpty` | `differential/18_arrays.swift` |  |
 | `stdlib.Array.indices` | Array.indices | **supported** | `indices` | `differential/18_arrays.swift` |  |
-| `stdlib.Array.startIndex` | Array.startIndex | partial | `startIndex` | — |  |
-| `stdlib.Array.endIndex` | Array.endIndex | partial | `endIndex` | — |  |
+| `stdlib.Array.startIndex` | Array.startIndex | **supported** | `startIndex` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Array.endIndex` | Array.endIndex | **supported** | `endIndex` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Array.joined` | Array.joined | **supported** | `joined(separator:) / joined()` | `differential/03_strings.swift` `differential/24_algorithms.swift` | 仅 [String] |
-| `stdlib.Array.prefix` | Array.prefix | partial | `prefix(_:)` | — |  |
-| `stdlib.Array.suffix` | Array.suffix | partial | `suffix(_:)` | — |  |
-| `stdlib.Array.dropFirst` | Array.dropFirst | partial | `dropFirst() / dropFirst(_:)` | — |  |
-| `stdlib.Array.dropLast` | Array.dropLast | partial | `dropLast() / dropLast(_:)` | — |  |
+| `stdlib.Array.prefix` | Array.prefix | **supported** | `prefix(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Array.suffix` | Array.suffix | **supported** | `suffix(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Array.dropFirst` | Array.dropFirst | **supported** | `dropFirst() / dropFirst(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Array.dropLast` | Array.dropLast | **supported** | `dropLast() / dropLast(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Array.subscript` | Array.subscript | **supported** | `a[i] / a[range]` | `differential/18_arrays.swift` `differential/27_trap_index_out_of_range.swift` | 越界为受控 trap |
 | `stdlib.Array.init` | Array.init | **supported** | `Array(seq) / Array(repeating:count:) / [T]()` | `differential/18_arrays.swift` `differential/06_ranges_for.swift` |  |
 | `stdlib.Range.count` | Range.count | **supported** | `count` | `differential/06_ranges_for.swift` |  |
-| `stdlib.Range.isEmpty` | Range.isEmpty | partial | `isEmpty` | — |  |
+| `stdlib.Range.isEmpty` | Range.isEmpty | **supported** | `isEmpty` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Range.lowerBound` | Range.lowerBound | **supported** | `lowerBound` | `differential/06_ranges_for.swift` |  |
 | `stdlib.Range.upperBound` | Range.upperBound | **supported** | `upperBound` | `differential/06_ranges_for.swift` |  |
-| `stdlib.Range.first` | Range.first | partial | `first` | — |  |
-| `stdlib.Range.last` | Range.last | partial | `last` | — |  |
+| `stdlib.Range.first` | Range.first | **supported** | `first` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.last` | Range.last | **supported** | `last` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Range.contains` | Range.contains | **supported** | `contains(_:)` | `differential/06_ranges_for.swift` |  |
 | `stdlib.Range.map` | Range.map | **supported** | `map(_:)` | `differential/12_recursion.swift` | 序列方法：物化为数组（受 maxCollectionElements 约束） |
 | `stdlib.Range.filter` | Range.filter | **supported** | `filter(_:)` | `differential/24_algorithms.swift` |  |
 | `stdlib.Range.reversed` | Range.reversed | **supported** | `reversed()` | `differential/06_ranges_for.swift` |  |
-| `stdlib.Range.reduce` | Range.reduce | partial | `reduce(_:_:)` | — |  |
-| `stdlib.Range.forEach` | Range.forEach | partial | `forEach(_:)` | — |  |
-| `stdlib.Range.allSatisfy` | Range.allSatisfy | partial | `allSatisfy(_:)` | — |  |
-| `stdlib.Range.compactMap` | Range.compactMap | partial | `compactMap(_:)` | — |  |
-| `stdlib.Range.sorted` | Range.sorted | partial | `sorted()` | — |  |
-| `stdlib.Range.enumerated` | Range.enumerated | partial | `enumerated()` | — |  |
-| `stdlib.Range.firstIndex` | Range.firstIndex | partial | `firstIndex(of:)` | — |  |
-| `stdlib.Range.lastIndex` | Range.lastIndex | partial | `lastIndex(of:)` | — |  |
-| `stdlib.Range.min` | Range.min | partial | `min()` | — |  |
-| `stdlib.Range.max` | Range.max | partial | `max()` | — |  |
-| `stdlib.Range.joined` | Range.joined | partial | `joined()` | — |  |
-| `stdlib.Range.prefix` | Range.prefix | partial | `prefix(_:)` | — |  |
-| `stdlib.Range.suffix` | Range.suffix | partial | `suffix(_:)` | — |  |
-| `stdlib.Range.dropFirst` | Range.dropFirst | partial | `dropFirst()` | — |  |
-| `stdlib.Range.dropLast` | Range.dropLast | partial | `dropLast()` | — |  |
+| `stdlib.Range.reduce` | Range.reduce | **supported** | `reduce(_:_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.forEach` | Range.forEach | **supported** | `forEach(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.allSatisfy` | Range.allSatisfy | **supported** | `allSatisfy(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.compactMap` | Range.compactMap | **supported** | `compactMap(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.sorted` | Range.sorted | **supported** | `sorted()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.enumerated` | Range.enumerated | **supported** | `enumerated()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.firstIndex` | Range.firstIndex | **supported** | `firstIndex(of:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.lastIndex` | Range.lastIndex | **supported** | `lastIndex(of:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.min` | Range.min | **supported** | `min()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.max` | Range.max | **supported** | `max()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.joined` | Range.joined | unsupported | `joined()` | — | Int 元素序列无 joined（仅对 String 元素序列有意义） |
+| `stdlib.Range.prefix` | Range.prefix | **supported** | `prefix(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.suffix` | Range.suffix | **supported** | `suffix(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.dropFirst` | Range.dropFirst | **supported** | `dropFirst()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Range.dropLast` | Range.dropLast | **supported** | `dropLast()` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.String.count` | String.count | **supported** | `count` | `differential/03_strings.swift` | 按字素簇计数 |
 | `stdlib.String.isEmpty` | String.isEmpty | **supported** | `isEmpty` | `differential/03_strings.swift` |  |
-| `stdlib.String.first` | String.first | partial | `first` | — | Character 以单字符 String 表示 |
-| `stdlib.String.last` | String.last | partial | `last` | — |  |
-| `stdlib.String.description` | String.description | partial | `description` | — |  |
+| `stdlib.String.first` | String.first | **supported** | `first` | `differential/37_w4_stdlib_breadth.swift` | Character 以单字符 String 表示 |
+| `stdlib.String.last` | String.last | **supported** | `last` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.String.description` | String.description | **supported** | `description` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.String.uppercased` | String.uppercased | **supported** | `uppercased()` | `differential/03_strings.swift` |  |
 | `stdlib.String.lowercased` | String.lowercased | **supported** | `lowercased()` | `differential/03_strings.swift` |  |
 | `stdlib.String.contains` | String.contains | **supported** | `contains(_:)` | `differential/03_strings.swift` |  |
@@ -188,21 +188,21 @@
 | `stdlib.String.hasSuffix` | String.hasSuffix | **supported** | `hasSuffix(_:)` | `differential/03_strings.swift` |  |
 | `stdlib.String.append` | String.append | **supported** | `append(_:) / +=` | `differential/03_strings.swift` |  |
 | `stdlib.String.split` | String.split | **supported** | `split(separator:)` | `differential/03_strings.swift` | 返回 [String] |
-| `stdlib.String.components` | String.components | partial | `components(separatedBy:)` | — | Foundation |
+| `stdlib.String.components` | String.components | **supported** | `components(separatedBy:)` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.String.replacingOccurrences` | String.replacingOccurrences | **supported** | `replacingOccurrences(of:with:)` | `differential/03_strings.swift` |  |
 | `stdlib.String.trimmingCharacters` | String.trimmingCharacters | **supported** | `trimmingCharacters(in:)` | `differential/03_strings.swift` | 只去除空白与换行 |
 | `stdlib.String.reversed` | String.reversed | **supported** | `reversed()` | `differential/03_strings.swift` |  |
-| `stdlib.String.prefix` | String.prefix | partial | `prefix(_:)` | — |  |
-| `stdlib.String.suffix` | String.suffix | partial | `suffix(_:)` | — |  |
-| `stdlib.String.dropFirst` | String.dropFirst | partial | `dropFirst()` | — |  |
-| `stdlib.String.dropLast` | String.dropLast | partial | `dropLast()` | — |  |
-| `stdlib.String.removeAll` | String.removeAll | partial | `removeAll()` | — |  |
-| `stdlib.String.removeLast` | String.removeLast | partial | `removeLast()` | — |  |
-| `stdlib.String.removeFirst` | String.removeFirst | partial | `removeFirst()` | — |  |
-| `stdlib.String.filter` | String.filter | partial | `filter(_:)` | — |  |
-| `stdlib.String.map` | String.map | partial | `map(_:)` | — |  |
-| `stdlib.String.sorted` | String.sorted | partial | `sorted()` | — |  |
-| `stdlib.String.enumerated` | String.enumerated | partial | `enumerated()` | — |  |
+| `stdlib.String.prefix` | String.prefix | **supported** | `prefix(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.String.suffix` | String.suffix | **supported** | `suffix(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.String.dropFirst` | String.dropFirst | **supported** | `dropFirst()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.String.dropLast` | String.dropLast | **supported** | `dropLast()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.String.removeAll` | String.removeAll | **supported** | `removeAll()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.String.removeLast` | String.removeLast | **supported** | `removeLast()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.String.removeFirst` | String.removeFirst | **supported** | `removeFirst()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.String.filter` | String.filter | **supported** | `filter(_:)` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.String.map` | String.map | **supported** | `map(_:)` | `differential/37_w4_stdlib_breadth.swift` | 返回 [String]（Character 以单字符 String 表示） |
+| `stdlib.String.sorted` | String.sorted | **supported** | `sorted()` | `differential/37_w4_stdlib_breadth.swift` | 返回 [String]（按字符排序） |
+| `stdlib.String.enumerated` | String.enumerated | **supported** | `enumerated()` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.String.init` | String.init | **supported** | `String(x) / String(describing:) / String(repeating:count:)` | `differential/03_strings.swift` `differential/22_conversions.swift` |  |
 | `stdlib.String.subscript` | String.subscript | unsupported | `s[i]（String.Index）` | — |  |
 | `stdlib.Dictionary.subscript` | Dictionary.subscript | **supported** | `d[k] / d[k, default:]` | `differential/20_dictionaries.swift` `differential/29_trap_missing_dict_key.swift` | 赋 nil 删除键 |
@@ -211,35 +211,35 @@
 | `stdlib.Dictionary.keys` | Dictionary.keys | **supported** | `keys` | `differential/20_dictionaries.swift` | 返回数组；遍历顺序为插入顺序（Swift 原生顺序不确定） |
 | `stdlib.Dictionary.values` | Dictionary.values | **supported** | `values` | `differential/20_dictionaries.swift` |  |
 | `stdlib.Dictionary.removeValue` | Dictionary.removeValue | **supported** | `removeValue(forKey:)` | `differential/20_dictionaries.swift` |  |
-| `stdlib.Dictionary.updateValue` | Dictionary.updateValue | partial | `updateValue(_:forKey:)` | — |  |
-| `stdlib.Dictionary.removeAll` | Dictionary.removeAll | partial | `removeAll()` | — |  |
-| `stdlib.Dictionary.mapValues` | Dictionary.mapValues | partial | `mapValues(_:)` | — |  |
-| `stdlib.Dictionary.filter` | Dictionary.filter | partial | `filter(_:)` | — |  |
+| `stdlib.Dictionary.updateValue` | Dictionary.updateValue | **supported** | `updateValue(_:forKey:)` | `dictionarySequenceOps` |  |
+| `stdlib.Dictionary.removeAll` | Dictionary.removeAll | **supported** | `removeAll()` | `dictionarySequenceOps` |  |
+| `stdlib.Dictionary.mapValues` | Dictionary.mapValues | **supported** | `mapValues(_:)` | `dictionarySequenceOps` | 插入顺序保留 |
+| `stdlib.Dictionary.filter` | Dictionary.filter | **supported** | `filter(_:)` | `dictionarySequenceOps` | 插入顺序保留 |
 | `stdlib.Dictionary.sorted` | Dictionary.sorted | **supported** | `sorted(by:)` | `differential/20_dictionaries.swift` | 元素为 (key:, value:) 元组 |
-| `stdlib.Dictionary.map` | Dictionary.map | partial | `map(_:)` | — |  |
-| `stdlib.Dictionary.forEach` | Dictionary.forEach | partial | `forEach(_:)` | — |  |
-| `stdlib.Dictionary.reduce` | Dictionary.reduce | partial | `reduce(_:_:)` | — |  |
-| `stdlib.Dictionary.contains` | Dictionary.contains | partial | `contains(where:)` | — |  |
-| `stdlib.Dictionary.first` | Dictionary.first | partial | `first(where:)` | — |  |
-| `stdlib.Dictionary.compactMap` | Dictionary.compactMap | partial | `compactMap(_:)` | — |  |
-| `stdlib.Dictionary.allSatisfy` | Dictionary.allSatisfy | partial | `allSatisfy(_:)` | — |  |
-| `stdlib.Dictionary.min` | Dictionary.min | partial | `min(by:)` | — |  |
-| `stdlib.Dictionary.max` | Dictionary.max | partial | `max(by:)` | — |  |
+| `stdlib.Dictionary.map` | Dictionary.map | **supported** | `map(_:)` | `dictionarySequenceOps` | 元素为 (key:, value:) 元组 |
+| `stdlib.Dictionary.forEach` | Dictionary.forEach | **supported** | `forEach(_:)` | `dictionarySequenceOps` | 元素为 (key:, value:) 元组 |
+| `stdlib.Dictionary.reduce` | Dictionary.reduce | **supported** | `reduce(_:_:)` | `dictionarySequenceOps` | 元素为 (key:, value:) 元组 |
+| `stdlib.Dictionary.contains` | Dictionary.contains | **supported** | `contains(where:)` | `dictionarySequenceOps` | 元素为 (key:, value:) 元组 |
+| `stdlib.Dictionary.first` | Dictionary.first | **supported** | `first(where:)` | `dictionarySequenceOps` | 元素为 (key:, value:) 元组 |
+| `stdlib.Dictionary.compactMap` | Dictionary.compactMap | **supported** | `compactMap(_:)` | `dictionarySequenceOps` | 元素为 (key:, value:) 元组 |
+| `stdlib.Dictionary.allSatisfy` | Dictionary.allSatisfy | **supported** | `allSatisfy(_:)` | `dictionarySequenceOps` | 元素为 (key:, value:) 元组 |
+| `stdlib.Dictionary.min` | Dictionary.min | **supported** | `min(by:)` | `dictionarySequenceOps` | 元素为 (key:, value:) 元组 |
+| `stdlib.Dictionary.max` | Dictionary.max | **supported** | `max(by:)` | `dictionarySequenceOps` | 元素为 (key:, value:) 元组 |
 | `stdlib.Int.init` | Int.init | **supported** | `Int(String) → Int? / Int(Double)` | `differential/22_conversions.swift` | Int(Double) 对 NaN/无穷/越界为受控 trap |
 | `stdlib.Int.isMultiple` | Int.isMultiple | **supported** | `isMultiple(of:)` | `differential/01_int_arithmetic.swift` |  |
-| `stdlib.Int.signum` | Int.signum | partial | `signum()` | — |  |
-| `stdlib.Int.description` | Int.description | partial | `description` | — |  |
-| `stdlib.Int.magnitude` | Int.magnitude | partial | `magnitude` | — |  |
+| `stdlib.Int.signum` | Int.signum | **supported** | `signum()` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Int.description` | Int.description | **supported** | `description` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Int.magnitude` | Int.magnitude | **supported** | `magnitude` | `differential/37_w4_stdlib_breadth.swift` | UInt 语义，按 Int 非负值表示 |
 | `stdlib.Double.init` | Double.init | **supported** | `Double(Int) / Double(String) → Double?` | `differential/22_conversions.swift` `differential/02_double_arithmetic.swift` |  |
-| `stdlib.Double.rounded` | Double.rounded | **supported** | `rounded()` | `differential/02_double_arithmetic.swift` |  |
+| `stdlib.Double.rounded` | Double.rounded | **supported** | `rounded() / rounded(_:)` | `differential/02_double_arithmetic.swift` `differential/37_w4_stdlib_breadth.swift` | 规则：up/down/toNearestOrAwayFromZero/toNearestOrEven |
 | `stdlib.Double.squareRoot` | Double.squareRoot | **supported** | `squareRoot()` | `differential/02_double_arithmetic.swift` |  |
 | `stdlib.Double.truncatingRemainder` | Double.truncatingRemainder | **supported** | `truncatingRemainder(dividingBy:)` | `differential/02_double_arithmetic.swift` |  |
-| `stdlib.Double.description` | Double.description | partial | `description` | — |  |
-| `stdlib.Double.isNaN` | Double.isNaN | partial | `isNaN` | — |  |
-| `stdlib.Double.isInfinite` | Double.isInfinite | partial | `isInfinite` | — |  |
-| `stdlib.Double.isFinite` | Double.isFinite | partial | `isFinite` | — |  |
+| `stdlib.Double.description` | Double.description | **supported** | `description` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Double.isNaN` | Double.isNaN | **supported** | `isNaN` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Double.isInfinite` | Double.isInfinite | **supported** | `isInfinite` | `differential/37_w4_stdlib_breadth.swift` |  |
+| `stdlib.Double.isFinite` | Double.isFinite | **supported** | `isFinite` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.Bool.toggle` | Bool.toggle | **supported** | `toggle()` | `differential/04_bool_logic.swift` |  |
-| `stdlib.Bool.description` | Bool.description | partial | `description` | — |  |
+| `stdlib.Bool.description` | Bool.description | **supported** | `description` | `differential/37_w4_stdlib_breadth.swift` |  |
 | `stdlib.print` | print | **supported** | `print(_:..., separator:terminator:)` | `differential/23_print_formatting.swift` | 输出为 .console(.stdout, …) 事件；格式与 Swift description/debugDescription 一致 |
 | `stdlib.String.format` | String(format:) | **supported** | `String(format:_:...)（仅 %.Nf 与 %%)` | `differential/35_w3_format_date.swift` `stringFormatIntArgActsAsDouble` | Int 实参按 Double 格式化（Swift 原生要求 Double）；其他占位符报 unsupportedAPI |
 | `stdlib.Date` | Date | **supported** | `Date() / Date.now（只读）` | `differential/35_w3_format_date.swift` | 只读基础：description/打印/==/</比较；无运算与格式化器；时钟读取是允许的非确定性（随机/网络仍一律拒绝） |
@@ -247,10 +247,12 @@
 | `stdlib.min` | min | **supported** | `min(_:_:...)` | `differential/01_int_arithmetic.swift` |  |
 | `stdlib.max` | max | **supported** | `max(_:_:...)` | `differential/22_conversions.swift` |  |
 | `stdlib.stride` | stride | **supported** | `stride(from:to:by:) / stride(from:through:by:)` | `differential/06_ranges_for.swift` | 物化为数组 |
-| `stdlib.fatalError` | fatalError | partial | `fatalError(_:)` | — | 作为受控 runtimeTrap |
-| `stdlib.precondition` | precondition | partial | `precondition(_:_:)` | — |  |
-| `stdlib.assert` | assert | partial | `assert(_:_:)` | — |  |
-| `stdlib.math` | sqrt/floor/ceil/round/sin/cos/exp/log/pow | partial | — | — | Foundation 函数，仅 Double |
+| `stdlib.fatalError` | fatalError | **supported** | `fatalError(_:)` | `runtimeTrapsBecomeDiagnostics` | 作为受控 runtimeTrap（终止运行，非进程崩溃） |
+| `stdlib.precondition` | precondition | **supported** | `precondition(_:_:)` | `runtimeTrapsBecomeDiagnostics` | 作为受控 runtimeTrap |
+| `stdlib.assert` | assert | **supported** | `assert(_:_:)` | `runtimeTrapsBecomeDiagnostics` | 作为受控 runtimeTrap |
+| `stdlib.math` | sqrt/floor/ceil/round/sin/cos/exp/log/pow | **supported** | — | `differential/37_w4_stdlib_breadth.swift` | Foundation 函数，仅 Double |
+| `stdlib.zip` | zip | **supported** | `zip(_:_:)` | `differential/37_w4_stdlib_breadth.swift` | 物化为 (0:, 1:) 元组数组，长度取较短序列 |
+| `stdlib.repeatElement` | repeatElement | **supported** | `repeatElement(_:count:)` | `differential/37_w4_stdlib_breadth.swift` | 物化为数组 |
 | `stdlib.CGFloat` | CGFloat | partial | — | — | 按 Double 处理 |
 | `stdlib.Character` | Character | partial | — | — | 按单字符 String 处理 |
 | `stdlib.ActionSheet` | ActionSheet | unsupported | — | — |  |
@@ -305,12 +307,10 @@
 | `stdlib.dump` | dump(…) | unsupported | — | — |  |
 | `stdlib.exit` | exit(…) | unsupported | — | — |  |
 | `stdlib.readLine` | readLine(…) | unsupported | — | — |  |
-| `stdlib.repeatElement` | repeatElement(…) | unsupported | — | — |  |
 | `stdlib.sequence` | sequence(…) | unsupported | — | — |  |
 | `stdlib.swap` | swap(…) | unsupported | — | — |  |
 | `stdlib.type` | type(…) | unsupported | — | — |  |
 | `stdlib.withAnimation` | withAnimation(…) | unsupported | — | — |  |
-| `stdlib.zip` | zip(…) | unsupported | — | — |  |
 | `stdlib.Int.random` | Int.random… | unsupported | — | — | 非确定性 API |
 | `stdlib.Double.random` | Double.random… | unsupported | — | — | 非确定性 API |
 | `stdlib.Bool.random` | Bool.random… | unsupported | — | — | 非确定性 API |

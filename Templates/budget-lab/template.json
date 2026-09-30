@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "budget-lab",
+  "displayName": "预算推演本",
+  "description": "改假设（人数、单价、工期、利润率），按固定公式重算并给出敏感度对照。",
+  "category": "数据",
+  "entrySymbol": "BudgetLabView",
+  "files": [
+    {
+      "path": "Sources/Models/BudgetModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

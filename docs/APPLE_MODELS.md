@@ -102,8 +102,49 @@
 ## 7. 隐私与上传策略
 
 - 默认设备端：提示与输出不离开设备。
-- 云端（PCC）只有在用户于「AI 状态」页确认后才可选；确认可随时撤销（`CloudConsentStore.revokeConsent()`）。
+- 云端（PCC）只有在用户于「AI 状态」页或助手面板明确确认后才可选；确认可随时撤销（`CloudConsentStore.revokeConsent()`）。
 - 不存在任何自动回退路径：设备端不可用 → 任务失败并显示原因，**从本地模式绝不静默上传**（`ModelBrokerTests.noSilentCloudFallback`）。
 - 不可用时界面禁用发送并显示原因，**不提供假响应**。
-- FoundationAI 目标内无 URLSession / URLRequest / 外部端点，模块导入仅限 Foundation / FoundationModels / Synchronization / RuntimeContracts（`NetworkAuditTests`，项目自定义源码审计）。
+- FoundationAI 目标内无 URLSession / URLRequest / 外部端点，模块导入仅限 Foundation / FoundationModels / Synchronization / RuntimeContracts / ProjectContracts（`NetworkAuditTests`，项目自定义源码审计）。
 - M3 起的项目上下文、秘密信息检测、工具调用策略不在 M0 范围。
+
+## 8. W2 助手闭环（2026-09-28）
+
+- 后端选择：沿用 §1（默认设备端；云端首次确认；绝不自动回退）。助手面板由
+  `App/Assistant/AssistantSession.swift` 经 `ModelBroker` 统一访问：
+  每次 `send()` 走 `broker.perform`（任务开始时实时检测可用性），单在途（新发送先取消旧的），
+  云端无确认时弹确认框（`needsCloudConsent`），确认前不检测不调用。
+- PCC 缺失：`PrivateCloudComputeDriver` 仍固定 `.pccSDKMissing`（`FAIRY_PCC_SDK` 未定义）；
+  面板从该值读"不可用原因"，云端选项禁用并显示（`cloudDisabledReason`），见 §5 核对清单。
+- `@Generable`：Xcode 27 SDK 已核实含 `@Generable` 宏（swiftinterface 有 3 处 `macro Generable`
+  声明）与 `Tool` / `ToolCall` / `ToolDefinition` 等符号。`ProposedChangeSet` /
+  `ProposedOperation` 在 Xcode 构建（非 SPM）带 `@Generable`，可直接用于约束生成；
+  SPM 构建因部署目标 macOS 15（宏要求 macOS 26+）退化为纯 Codable，走 JSON 代码块解析。
+  条件用 `SWIFT_PACKAGE` 区分（SPM 专有定义），不猜 SDK 版本。验证：Xcode iPhone 模拟器
+  Verify 构建通过（含宏展开路径）。
+- 工具挂接（2026-09-28 更新）：设备端后端已接入真实 FoundationModels `Tool` 循环
+  （`App/Assistant/AgentRunner.swift`）：`listFiles` / `readFile` / `readCapability` /
+  `readDiagnostics` / `proposeChanges` 以 `Tool` 协议挂进 `LanguageModelSession(tools:)`，
+  模型可多轮调用（每个文件一次 proposeChanges，天然绕开 4K 输出墙）；
+  累计操作序列化成 ```json 块回灌 `AssistantPipeline`，预览/校验/修复/卡片全部复用。
+  工具参数用 App 侧 `@Generable` 镜像类型（`AgentFileOperation` 等）——包内的
+  `@Generable` 被 `!SWIFT_PACKAGE` 条件挡住，Xcode 集成构建的 SwiftPM 包同样定义
+  `SWIFT_PACKAGE`，宏实际不展开。云端后端与单测仍走纯文本路径；候选隔离运行仍列 M3。
+- macOS 27 宿主实测：`OnDeviceModelDriver.checkAvailability()` 首次返回
+  `available`（`supportsLocale(zh-Hans_AU)=true`），此前 macOS 15 宿主为 systemError。
+  但单测仍只用假 driver，不做真实调用（见 `docs/AI_EVAL.md`，真实评测待 iPhone 实机）。
+
+## 9. 输出上限与截断（2026-09-28）
+
+- 端上模型上下文约 **4K tokens**，指令、提示与输出**共享**该窗口；创建项目 /
+  大改动所需的长 JSON 输出很容易在半途断掉。
+- `OnDeviceModelDriver` 现显式传
+  `GenerationOptions(maximumResponseTokens: SystemLanguageModel.default.contextSize)`：
+  输出上限 = 上下文上限（框架默认输出上限更保守，实测长 JSON 中途停止）。
+  `SystemLanguageModel.contextSize` 自 iOS 26.0 可用（back-deployed before 26.4，
+  swiftinterface 已核实），不必硬编码 4096。
+- iOS 27 SDK 新增 `LanguageModelError`（含 `contextSizeExceeded`，带 contextSize /
+  tokenCount 字段）与 `session.tokenCount(for:)`；现有 `LanguageModelSession` API
+  仍抛 `GenerationError`（9 case 未变）。挂接新 API 时留意（M3）。
+- 截断的闭环处理见 `docs/AI_WORKFLOW.md` §8：自动续写最多 2 轮，
+  仍不完整报 `outputTruncated` 并提示拆小需求。

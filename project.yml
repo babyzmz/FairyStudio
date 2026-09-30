@@ -68,6 +68,8 @@ targets:
           - NativeBridge
           - FoundationAI
           - SwiftRuntime
+          - ProjectContracts
+          - ProjectCore
     # M0-C：App 的任何配置都不再依赖或链接 DevFixtures（夹具引擎只进入 FairyStudioTests，见下；scripts/check-release-link.sh 校验）。
 
   FairyStudioTests:

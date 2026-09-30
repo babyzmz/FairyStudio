@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "inbox-triage",
+  "displayName": "材料分拣面板",
+  "description": "把待处理材料逐个定用途（保留/归档/放弃），一键应用并给出分拣结果。",
+  "category": "任务面板",
+  "entrySymbol": "InboxTriageView",
+  "files": [
+    {
+      "path": "Sources/Models/TriageModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

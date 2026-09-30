@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "config-compare",
+  "displayName": "方案对比器",
+  "description": "现场调整设备数量与功能组合，实时得出配置与成本，保存为方案 A/B 对比。",
+  "category": "演示",
+  "entrySymbol": "PlanCompareView",
+  "files": [
+    {
+      "path": "Sources/Models/PlanModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

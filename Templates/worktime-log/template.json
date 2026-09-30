@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "worktime-log",
+  "displayName": "项目工时本",
+  "description": "四个大按钮完成日常记录，按客户汇总工时。",
+  "category": "小工具",
+  "entrySymbol": "WorktimeLogView",
+  "files": [
+    {
+      "path": "Sources/Models/WorktimeModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

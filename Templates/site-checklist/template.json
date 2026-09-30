@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "site-checklist",
+  "displayName": "安装验收清单",
+  "description": "逐项验收：不通过才展开原因填写，完成后生成验收小结。",
+  "category": "现场工作",
+  "entrySymbol": "SiteChecklistView",
+  "files": [
+    {
+      "path": "Sources/Models/ChecklistModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

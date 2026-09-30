@@ -1,30 +1,17 @@
 import SwiftUI
+import ProjectCore
+import SwiftRuntime
 
 @main
 struct FairyStudioApp: App {
-    @State private var studio = StudioModel()
-    @State private var aiStatus = AIStatusModel()
+    /// 作品库：Documents/Projects（W1 项目存储）。
+    private let library = ProjectLibrary(
+        documentsURL: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!,
+        currentRuntimeVersion: SwiftRuntimeEngine.version.description)
 
     var body: some Scene {
         WindowGroup {
-            RootView(studio: studio, aiStatus: aiStatus)
-        }
-    }
-}
-
-/// M0 根界面：两个页签。
-struct RootView: View {
-    let studio: StudioModel
-    let aiStatus: AIStatusModel
-
-    var body: some View {
-        TabView {
-            Tab("运行实验", systemImage: "play.rectangle") {
-                RunLabView(studio: studio)
-            }
-            Tab("AI 状态", systemImage: "sparkles") {
-                AIStatusView(model: aiStatus)
-            }
+            LibraryView(library: library)
         }
     }
 }

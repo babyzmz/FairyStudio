@@ -1,0 +1,11 @@
+{
+  "formatVersion": 1,
+  "id": "calc",
+  "displayName": "调参计算",
+  "description": "单价、数量、税率三组步进按钮，实时算出小计与含税总价：@State + 计算属性演示。",
+  "entrySymbol": "ContentView",
+  "files": [
+    { "path": "Sources/Models/CalcModel.swift" },
+    { "path": "Sources/Views/ContentView.swift" }
+  ]
+}

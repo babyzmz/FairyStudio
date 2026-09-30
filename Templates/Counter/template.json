@@ -1,11 +1,11 @@
 {
   "formatVersion": 1,
   "id": "counter",
-  "displayName": "计数器（M0 示例）",
-  "entry": { "rootView": "ContentView" },
+  "displayName": "计数器",
+  "description": "最简单的 @State 计数器：按钮加一、清零，演示跨文件模型与根视图。",
+  "entrySymbol": "ContentView",
   "files": [
-    { "id": "counter-model", "path": "Sources/Models/Counter.swift" },
-    { "id": "counter-content-view", "path": "Sources/Views/ContentView.swift" }
-  ],
-  "origin": "复制自 Packages/FairyCore/Tests/SwiftRuntimeTests/Fixtures/counter（M0-C）；FairyStudioTests 校验两者内容一致。"
+    { "path": "Sources/Models/Counter.swift" },
+    { "path": "Sources/Views/ContentView.swift" }
+  ]
 }

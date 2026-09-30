@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "math-lab",
+  "displayName": "二次函数实验",
+  "description": "拖动 a、b、c 三个参数，观察判别式、根与函数值表的变化：先猜再看。",
+  "category": "实验室",
+  "entrySymbol": "MathLabView",
+  "files": [
+    {
+      "path": "Sources/Models/QuadModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

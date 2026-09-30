@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "chord-practice",
+  "displayName": "和弦练习面板",
+  "description": "按设定顺序显示和弦、可标记难点、记录完成轮次：练琴时的现场面板。",
+  "category": "练习",
+  "entrySymbol": "ChordPracticeView",
+  "files": [
+    {
+      "path": "Sources/Models/PracticeModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

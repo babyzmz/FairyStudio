@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "story-branch",
+  "displayName": "互动故事",
+  "description": "分支短篇互动故事：选择影响勇气值，走向不同结局。",
+  "category": "创意",
+  "entrySymbol": "StoryView",
+  "files": [
+    {
+      "path": "Sources/Models/StoryModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

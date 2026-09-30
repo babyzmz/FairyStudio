@@ -1,9 +1,11 @@
 import Foundation
 
-/// 本项目只允许两个模型后端：Apple 设备端 Foundation Models 与 Apple Private Cloud Compute。
+/// 模型后端：Apple 设备端 / Apple 云端（PCC）/ OpenRouter（用户自行配置的第三方云端）。
+/// 后端之间绝不自动回退；第三方后端必须单独授权（见 OpenRouterConsentStore）。
 public enum ModelBackend: String, CaseIterable, Sendable, Hashable, Codable, Identifiable {
     case onDevice
     case privateCloudCompute
+    case openRouter
 
     public var id: String { rawValue }
 
@@ -12,6 +14,7 @@ public enum ModelBackend: String, CaseIterable, Sendable, Hashable, Codable, Ide
         switch self {
         case .onDevice: "设备端（Apple Foundation Models）"
         case .privateCloudCompute: "Apple 云端（Private Cloud Compute）"
+        case .openRouter: "OpenRouter（用户自配云端）"
         }
     }
 
@@ -19,6 +22,7 @@ public enum ModelBackend: String, CaseIterable, Sendable, Hashable, Codable, Ide
         switch self {
         case .onDevice: "设备端"
         case .privateCloudCompute: "Apple 云端"
+        case .openRouter: "OpenRouter"
         }
     }
 }
@@ -48,6 +52,10 @@ public enum ModelAvailability: Sendable, Hashable, Codable {
     case refused
     /// 系统错误（附原始描述）。
     case systemError(String)
+    /// 未配置第三方后端（OpenRouter）的 API Key。
+    case missingAPIKey
+    /// 第三方后端（OpenRouter）尚未获得用户授权。
+    case thirdPartyNotAuthorized
     /// 无法判断原因。
     case unknown
 
@@ -68,6 +76,8 @@ public enum ModelAvailability: Sendable, Hashable, Codable {
         case .quotaExhausted: "请求过于频繁或配额已用尽，请稍后再试"
         case .refused: "模型拒绝了该请求"
         case let .systemError(detail): "系统错误：\(detail)"
+        case .missingAPIKey: "未配置 OpenRouter API Key（助手设置 → OpenRouter）"
+        case .thirdPartyNotAuthorized: "尚未授权将内容发送至 OpenRouter（助手设置 → OpenRouter）"
         case .unknown: "原因未知（系统未给出可识别的状态）"
         }
     }
@@ -87,6 +97,8 @@ public enum ModelAvailability: Sendable, Hashable, Codable {
         case .quotaExhausted: "quotaExhausted"
         case .refused: "refused"
         case .systemError: "systemError"
+        case .missingAPIKey: "missingAPIKey"
+        case .thirdPartyNotAuthorized: "thirdPartyNotAuthorized"
         case .unknown: "unknown"
         }
     }
@@ -136,6 +148,14 @@ public enum ModelTaskFailure: Error, Sendable, Hashable {
     /// SDK 新增、本代码尚未识别的 GenerationError。
     case unrecognizedGenerationError(String)
     case systemError(String)
+    /// 第三方后端认证失败（如 OpenRouter 401）。
+    case authFailed(String)
+    /// 第三方后端余额或额度不足（如 OpenRouter 402）。
+    case insufficientCredits(String)
+    /// 第三方流式输出被截断或以 length/error 结束：完整接收但不得自动提交。
+    case truncatedOutput(String)
+    /// 第三方端点返回不兼容的响应结构。
+    case endpointIncompatible(String)
 
     /// 该失败对后端可用性的含义（用于刷新 AI 状态页）；nil 表示不改变可用性判断。
     public var availabilityImpact: ModelAvailability? {
@@ -146,14 +166,15 @@ public enum ModelTaskFailure: Error, Sendable, Hashable {
         case .rateLimited: .quotaExhausted
         case .guardrailViolation, .refusal: .refused
         case .cloudConsentRequired, .busy, .exceededContextWindowSize, .unsupportedGuide, .decodingFailure,
-             .concurrentRequests, .unrecognizedGenerationError, .systemError: nil
+             .concurrentRequests, .unrecognizedGenerationError, .systemError,
+             .authFailed, .insufficientCredits, .truncatedOutput, .endpointIncompatible: nil
         }
     }
 
     public var userMessage: String {
         switch self {
         case let .unavailable(availability): "AI 不可用：\(availability.reasonDescription)"
-        case .cloudConsentRequired: "使用 Apple 云端前需要你的确认"
+        case .cloudConsentRequired: "使用云端后端前需要你的确认（助手设置）"
         case .busy: "已有一个请求正在进行，请等待完成或取消"
         case let .exceededContextWindowSize(detail): "内容超出模型上下文容量，请缩短输入（\(detail)）"
         case let .assetsUnavailable(detail): "模型资源不可用（\(detail)）"
@@ -166,6 +187,10 @@ public enum ModelTaskFailure: Error, Sendable, Hashable {
         case let .refusal(detail): "模型拒绝回答（\(detail)）"
         case let .unrecognizedGenerationError(detail): "未识别的生成错误（\(detail)）"
         case let .systemError(detail): "系统错误（\(detail)）"
+        case let .authFailed(detail): "OpenRouter 认证失败：请检查 API Key（\(detail)）"
+        case let .insufficientCredits(detail): "OpenRouter 余额或额度不足（\(detail)）"
+        case let .truncatedOutput(detail): "模型输出被截断（\(detail)）；本轮不应用，请重试或换模型"
+        case let .endpointIncompatible(detail): "OpenRouter 端点返回不兼容的响应（\(detail)）"
         }
     }
 }

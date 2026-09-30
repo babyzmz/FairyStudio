@@ -8,6 +8,7 @@
 #   FAIRY_ONLY_DEVICE=iphone scripts/build-verify.sh
 #   FAIRY_TEST_FILTER="-only-testing:FairyStudioTests" scripts/build-verify.sh
 #   FAIRY_SKIP_GENERATE=1 scripts/build-verify.sh
+#   FAIRY_OS=26.3.1 scripts/build-verify.sh   # 钉住模拟器 runtime（新 runtime 无设备时用）
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -22,8 +23,11 @@ DERIVED="${FAIRY_DERIVED_DATA:-$HOME/Library/Developer/Xcode/DerivedData/FairySt
 RESULTS="$DERIVED/results"
 mkdir -p "$RESULTS"
 
-IPHONE="platform=iOS Simulator,name=iPhone 17 Pro"
-IPAD="platform=iOS Simulator,name=iPad Pro 11-inch (M5)"
+# FAIRY_OS：显式钉住模拟器 runtime 版本（如 FAIRY_OS=26.3.1）。新 runtime（如 iOS 27.0）
+# 刚安装还没有设备时，name= 不带 OS 会解析到最新 runtime 而报 "Unable to find a device"。
+OS_SUFFIX="${FAIRY_OS:+,OS=$FAIRY_OS}"
+IPHONE="platform=iOS Simulator,name=iPhone 17 Pro$OS_SUFFIX"
+IPAD="platform=iOS Simulator,name=iPad Pro 11-inch (M5)$OS_SUFFIX"
 case "${FAIRY_ONLY_DEVICE:-all}" in
   iphone) DESTINATIONS=("$IPHONE") ;;
   ipad) DESTINATIONS=("$IPAD") ;;

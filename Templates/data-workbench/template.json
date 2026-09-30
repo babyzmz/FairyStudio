@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "data-workbench",
+  "displayName": "销售数据台",
+  "description": "按区域筛选、按金额或月份排序、按区域汇总：样例数据的研究台。",
+  "category": "数据",
+  "entrySymbol": "DataWorkbenchView",
+  "files": [
+    {
+      "path": "Sources/Models/SalesModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

@@ -216,7 +216,12 @@ enum ViewBuiltins {
         case "ProgressView":
             let label = try arg(nil).map { try string($0, "ProgressView 标题") }
             let value = try arg("value").map { try number($0, "value") }
-            return .view(ViewNode(.progress(label: label, value: value)))
+            // total：原生 ProgressView(value:total:) 语义，归一化为 0...1 的比例。
+            var fraction = value
+            if let v = value, let t = try arg("total").map({ try number($0, "total") }), t > 0 {
+                fraction = min(1.0, max(0.0, v / t))
+            }
+            return .view(ViewNode(.progress(label: label, value: fraction)))
         case "Color":
             if let r = arg("red"), let g = arg("green"), let b = arg("blue") {
                 let a = try arg("opacity").map { try number($0, "opacity") } ?? 1

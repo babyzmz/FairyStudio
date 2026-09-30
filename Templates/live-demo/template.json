@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "live-demo",
+  "displayName": "现场演示控制台",
+  "description": "演讲者改假设参数、观众看结论实时变化：讲解模式开关控制备注显示。",
+  "category": "演示",
+  "entrySymbol": "LiveDemoView",
+  "files": [
+    {
+      "path": "Sources/Models/DemoModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

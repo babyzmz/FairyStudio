@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "equipment-log",
+  "displayName": "器材借还本",
+  "description": "登记器材借给谁、按活动与状态筛选、一键归还：每天真的会用的小工具。",
+  "category": "小工具",
+  "entrySymbol": "EquipmentLogView",
+  "files": [
+    {
+      "path": "Sources/Models/EquipmentModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

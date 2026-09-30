@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "site-survey",
+  "displayName": "现场勘察记录",
+  "description": "逐台记录设备编号、安装位置与状态，汇总成勘察记录。",
+  "category": "现场工作",
+  "entrySymbol": "SiteSurveyView",
+  "files": [
+    {
+      "path": "Sources/Models/SurveyModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}

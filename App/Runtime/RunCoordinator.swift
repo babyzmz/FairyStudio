@@ -117,6 +117,7 @@ final class RunCoordinator {
         }
     }
 
+    @discardableResult
     private func enqueue(_ body: @escaping @MainActor (RunCoordinator) async -> Void) -> Task<Void, Never> {
         let previous = operation
         let task = Task { @MainActor [weak self] in

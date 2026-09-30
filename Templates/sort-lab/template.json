@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "id": "sort-lab",
+  "displayName": "排序算法实验",
+  "description": "单步执行排序：每按一次走一步，观察比较与交换次数的变化。",
+  "category": "实验室",
+  "entrySymbol": "SortLabView",
+  "files": [
+    {
+      "path": "Sources/Models/SortModel.swift"
+    },
+    {
+      "path": "Sources/Views/ContentView.swift"
+    }
+  ]
+}
