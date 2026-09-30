@@ -147,6 +147,11 @@ extension Stdlib {
                 throw VMError.typeMismatch("String(format:) 的 %.Nf 参数必须是 Int 或 Double，实际是 '\(ValueOps.typeName(args[ai]))'。")
             }
             ai += 1
+            guard let precision = Int(digits), precision <= min(1024, vm.meter.budget.maxStringLength),
+                  out.utf8.count <= vm.meter.budget.maxStringLength - precision else {
+                throw VMError.budget(.stringLength, "格式化精度超过预算")
+            }
+            try vm.meter.checkCancel()
             out += String(format: "%.\(digits)f", v)
         }
         try vm.meter.checkString(out)
@@ -225,10 +230,11 @@ extension Stdlib {
             return Value.none
         case "firstIndex(where:)":
             // Range 同上：闭包命中元素的索引是元素值。
-            if case .range(let r) = receiver, case .int(let x) = args[0],
-               x >= r.lower, x < r.endExclusive,
-               try ValueOps.truthy(try callElement(vm, args[0], .int(x))) {
-                return .int(x)
+            if case .range(let r) = receiver {
+                for x in r.lower..<r.endExclusive where try ValueOps.truthy(try callElement(vm, args[0], .int(x))) {
+                    return .int(x)
+                }
+                return Value.none
             }
             for (i, e) in a.enumerated() where try ValueOps.truthy(try callElement(vm, args[0], e)) { return .int(i) }
             return Value.none

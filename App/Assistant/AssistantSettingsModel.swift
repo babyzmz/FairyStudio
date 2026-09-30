@@ -21,7 +21,7 @@ final class AssistantSettingsModel {
         self.openRouterKeyStore = openRouterKeyStore
         backend = ModelBackend(rawValue: defaults.string(forKey: "fairy.ai.backend") ?? "") ?? .onDevice
         updateStrategy = UpdateStrategy(rawValue: defaults.string(forKey: "fairy.ai.updateStrategy") ?? "")
-            ?? .autoCompatible
+            ?? .manual
         openRouterModelID = defaults.string(forKey: "fairy.ai.openRouter.model") ?? OpenRouterCatalog.defaultModelID
     }
 

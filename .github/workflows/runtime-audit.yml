@@ -1,0 +1,115 @@
+name: Runtime audit regression
+
+on:
+  push:
+    branches: [main]
+    paths: ['App/**', 'Packages/**', 'Tests/**', 'Config/**', 'scripts/ci-bounded-command.py', 'FairyStudio.xcodeproj/**', 'project.yml', '.github/workflows/runtime-audit.yml']
+  pull_request:
+    paths: ['App/**', 'Packages/**', 'Tests/**', 'Config/**', 'scripts/ci-bounded-command.py', 'FairyStudio.xcodeproj/**', 'project.yml', '.github/workflows/runtime-audit.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-tests:
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify required toolchain and archive exact source
+        run: |
+          set -o pipefail
+          xcodebuild -version | tee "$RUNNER_TEMP/toolchain.txt"
+          grep '^Xcode 27' "$RUNNER_TEMP/toolchain.txt"
+          swift --version | tee -a "$RUNNER_TEMP/toolchain.txt"
+          xcodebuild -showsdks | tee -a "$RUNNER_TEMP/toolchain.txt"
+          git rev-parse HEAD > "$RUNNER_TEMP/revision.txt"
+          git archive --format=zip HEAD -o "$RUNNER_TEMP/FairyStudio-source.zip"
+      - name: Swift package regressions
+        run: |
+          python3 scripts/ci-bounded-command.py --timeout 900 --log "$RUNNER_TEMP/package-tests.log" -- swift test --package-path Packages/FairyCore --jobs 2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-tests-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/toolchain.txt
+            ${{ runner.temp }}/revision.txt
+            ${{ runner.temp }}/FairyStudio-source.zip
+            ${{ runner.temp }}/package-tests.log
+          retention-days: 7
+
+  app-unit-tests:
+    runs-on: xcode-27
+    timeout-minutes: 22
+    strategy:
+      fail-fast: false
+      matrix:
+        device-family: [iPhone, iPad]
+    env:
+      DEVICE_FAMILY: ${{ matrix.device-family }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Select an actual iOS 27 simulator
+        run: |
+          set -o pipefail
+          xcodebuild -version | tee "$RUNNER_TEMP/toolchain.txt"
+          grep '^Xcode 27' "$RUNNER_TEMP/toolchain.txt"
+          swift --version | tee -a "$RUNNER_TEMP/toolchain.txt"
+          git rev-parse HEAD > "$RUNNER_TEMP/revision.txt"
+          python3 - <<'PY'
+          import json, os, subprocess
+          data = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '-j'], timeout=60))
+          devices = [(runtime, d) for runtime, ds in data['devices'].items() if '.iOS-27' in runtime for d in ds if d['name'].startswith(os.environ['DEVICE_FAMILY']) and d.get('isAvailable')]
+          if not devices:
+              raise SystemExit('Required iOS 27 simulator unavailable. Product deployment target is not downgraded.')
+          runtime, device = devices[0]
+          print(runtime, device['name'], device['udid'], flush=True)
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write('SIMULATOR_UDID=' + device['udid'] + '\n')
+          with open(os.environ['RUNNER_TEMP'] + '/device.txt', 'w') as f:
+              json.dump({'runtime': runtime, 'device': device}, f)
+          PY
+      - name: Build app and test bundle without launching simulator
+        id: build
+        run: |
+          python3 scripts/ci-bounded-command.py --timeout 600 --log "$RUNNER_TEMP/app-build.log" -- xcodebuild build-for-testing -project FairyStudio.xcodeproj -scheme FairyStudio -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" -only-testing:FairyStudioTests -parallel-testing-enabled NO -jobs 2 CODE_SIGNING_ALLOWED=NO
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-build-${{ matrix.device-family }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/toolchain.txt
+            ${{ runner.temp }}/revision.txt
+            ${{ runner.temp }}/device.txt
+            ${{ runner.temp }}/app-build.log
+          retention-days: 7
+      - name: Boot simulator with an explicit deadline
+        if: steps.build.outcome == 'success'
+        run: |
+          python3 scripts/ci-bounded-command.py --timeout 180 --log "$RUNNER_TEMP/simulator-boot.log" -- xcrun simctl bootstatus "$SIMULATOR_UDID" -b
+      - name: App unit tests (no rebuild)
+        if: success()
+        run: |
+          python3 scripts/ci-bounded-command.py --timeout 480 --log "$RUNNER_TEMP/app-tests.log" -- xcodebuild test-without-building -project FairyStudio.xcodeproj -scheme FairyStudio -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" -only-testing:FairyStudioTests -parallel-testing-enabled NO -test-timeouts-enabled YES -default-test-execution-time-allowance 60 -maximum-test-execution-time-allowance 120 -jobs 2 CODE_SIGNING_ALLOWED=NO -resultBundlePath "$RUNNER_TEMP/AppTests.xcresult"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-tests-${{ matrix.device-family }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/toolchain.txt
+            ${{ runner.temp }}/revision.txt
+            ${{ runner.temp }}/device.txt
+            ${{ runner.temp }}/simulator-boot.log
+            ${{ runner.temp }}/app-tests.log
+            ${{ runner.temp }}/AppTests.xcresult
+          retention-days: 7

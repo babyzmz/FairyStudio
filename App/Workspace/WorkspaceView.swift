@@ -14,6 +14,7 @@ struct WorkspaceView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @State private var showHistory = false
+    @State private var showAssistantSettings = false
 
     init(project: ProjectStore, library: ProjectLibrary, coordinator: RunCoordinator, initialPrompt: String = "") {
         _model = State(initialValue: WorkspaceModel(store: project, library: library,
@@ -39,11 +40,13 @@ struct WorkspaceView: View {
                 case .triple:
                     let widths = WorkspaceWidths.split(available: proxy.size.width)
                     HStack(spacing: 0) {
-                        mainStage.frame(width: widths.stage)
-                        Divider()
-                        assistantColumn
-                            .frame(width: widths.assistant)
-                            .accessibilityIdentifier("assistant.sidebar")
+                        mainStage.frame(maxWidth: .infinity)
+                        if model.isAssistantVisible {
+                            Divider()
+                            assistantColumn
+                                .frame(width: widths.assistant)
+                                .accessibilityIdentifier("assistant.sidebar")
+                        }
                     }
                 case .double:
                     HStack(spacing: 0) {
@@ -69,6 +72,9 @@ struct WorkspaceView: View {
         }
         .sheet(isPresented: $model.isFileDrawerPresented) {
             fileDrawer
+        }
+        .sheet(isPresented: $showAssistantSettings) {
+            NavigationStack { AssistantSidebarView(session: model.assistant) }
         }
         .sheet(isPresented: $showHistory) {
             HistorySheet(session: model.assistant,
@@ -131,7 +137,7 @@ struct WorkspaceView: View {
     private var statusSummary: some View {
         let relationship = WorkspaceVersionRelationship(
             saved: model.snapshot?.revision,
-            running: model.assistant.runningVersion,
+            running: model.coordinator.isActive ? model.coordinator.runningRevision : nil,
             candidateBase: nil)
         return Text(relationship.summary)
     }
@@ -234,8 +240,8 @@ struct WorkspaceView: View {
                 .font(.callout)
                 .accessibilityIdentifier("assistant.newChat")
                 Menu {
-                    Button("会话历史…") { model.isAssistantVisible = true }
-                    Button("设置…") { model.isAssistantVisible = true }
+                    Button("会话历史…") { showAssistantSettings = true }
+                    Button("设置…") { showAssistantSettings = true }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }

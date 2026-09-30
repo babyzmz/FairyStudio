@@ -32,7 +32,8 @@ struct ZipImportTests {
         let store = try await library.openStore(id)
         let snap = await store.snapshot()
         #expect(snap.entry == .rootView(symbol: "BareView"), "入口从首个 struct X: View 推断")
-        #expect(snap.file(path: "Sources/App.swift") != nil)
+        #expect(snap.file(path: "Sources/random-dir/App.swift")?.contents == code)
+        #expect(snap.file(path: "Sources/App.swift") == nil, "导入应保留目录，不压平同名文件")
     }
 
     @Test func traversalAndAbsolutePathsRejected() async throws {

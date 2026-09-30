@@ -140,20 +140,25 @@ public enum ChangeSetPreview {
         guard changeSet.baseRevision == base.revision else {
             throw ChangeSetError.revisionMismatch(expected: changeSet.baseRevision, actual: base.revision)
         }
+        guard base.revision.rawValue < UInt64.max else { throw ChangeSetError.limitExceeded("修订号超限") }
         var files = base.files
-        for op in changeSet.operations {
+        for (operationIndex, op) in changeSet.operations.enumerated() {
             switch op {
             case let .create(path, contents):
-                try validatePath(path)
-                if files.contains(where: { $0.path == path }) { throw ChangeSetError.pathConflict(path) }
-                files.append(ProjectFileSnapshot(id: FileID(UUID().uuidString), path: path, contents: contents))
+                try validateContentPath(path)
+                if files.contains(where: { pathKey($0.path) == pathKey(path) }) { throw ChangeSetError.pathConflict(path) }
+                // Stable across candidate validation and the actual commit; never generate a second identity.
+                let seed = "\(changeSet.id.uuidString):\(operationIndex):\(path)"
+                let id = FileID("created-" + ContentHash(of: seed).rawValue)
+                guard !files.contains(where: { $0.id == id }) else { throw ChangeSetError.pathConflict(path) }
+                files.append(ProjectFileSnapshot(id: id, path: path, contents: contents))
             case let .replace(fileID, expected, contents):
                 let i = try index(of: fileID, in: files, expecting: expected)
                 files[i] = ProjectFileSnapshot(id: fileID, path: files[i].path, contents: contents)
             case let .rename(fileID, expected, newPath):
-                try validatePath(newPath)
+                try validateContentPath(newPath)
                 let i = try index(of: fileID, in: files, expecting: expected)
-                if files.contains(where: { $0.path == newPath && $0.id != fileID }) { throw ChangeSetError.pathConflict(newPath) }
+                if files.contains(where: { pathKey($0.path) == pathKey(newPath) && $0.id != fileID }) { throw ChangeSetError.pathConflict(newPath) }
                 files[i] = ProjectFileSnapshot(id: fileID, path: newPath, contents: files[i].contents)
             case let .delete(fileID, expected):
                 let i = try index(of: fileID, in: files, expecting: expected)
@@ -161,6 +166,10 @@ public enum ChangeSetPreview {
             }
         }
         let sources = files.filter(\.isSwiftSource)
+        if files.count > limits.maxSourceFiles * 2 { throw ChangeSetError.limitExceeded("项目文件数超限") }
+        if files.reduce(0, { $0 + $1.contents.utf8.count }) > limits.maxTotalSourceBytes * 2 {
+            throw ChangeSetError.limitExceeded("项目总量超限")
+        }
         if sources.count > limits.maxSourceFiles { throw ChangeSetError.limitExceeded("源码文件数超过 \(limits.maxSourceFiles)") }
         if let big = files.first(where: { $0.contents.utf8.count > limits.maxFileBytes }) { throw ChangeSetError.limitExceeded("文件过大：\(big.path)") }
         if sources.reduce(0, { $0 + $1.contents.utf8.count }) > limits.maxTotalSourceBytes { throw ChangeSetError.limitExceeded("源码总量超过上限") }
@@ -171,8 +180,21 @@ public enum ChangeSetPreview {
         return next
     }
 
+    public static func pathKey(_ path: String) -> String { path.precomposedStringWithCanonicalMapping.lowercased() }
+
+    /// Host metadata is not an editable project file (applies to manual edits and every AI backend).
+    public static func validateContentPath(_ path: String) throws {
+        try validatePath(path)
+        let key = pathKey(path)
+        guard key != "project.json", !key.hasPrefix("project.json/"),
+              !key.split(separator: "/").contains(where: { $0.hasPrefix(".") }) else {
+            throw ChangeSetError.invalidPath(path)
+        }
+    }
+
     static func index(of fileID: FileID, in files: [ProjectFileSnapshot], expecting hash: ContentHash) throws -> Int {
         guard let i = files.firstIndex(where: { $0.id == fileID }) else { throw ChangeSetError.fileNotFound(fileID) }
+        try validateContentPath(files[i].path)
         guard files[i].hash == hash else { throw ChangeSetError.hashMismatch(fileID: fileID, expected: hash, actual: files[i].hash) }
         return i
     }
@@ -185,5 +207,46 @@ public enum ChangeSetPreview {
               !path.unicodeScalars.contains(where: { $0.value < 0x20 }) else {
             throw ChangeSetError.invalidPath(path)
         }
+    }
+}
+
+/// Build a checked inverse for the immediate preceding source revision.
+/// Later user edits are never overwritten by a historical restore.
+public enum SourceRestore {
+    public static func changeSet(before: ProjectSnapshot, after: ProjectSnapshot,
+                                 current: ProjectSnapshot) throws -> FileChangeSet {
+        guard current.projectID == before.projectID, current.projectID == after.projectID,
+              current.revision == after.revision, Set(current.files) == Set(after.files) else {
+            throw ChangeSetError.revisionMismatch(expected: after.revision, actual: current.revision)
+        }
+        var operations: [FileOperation] = []
+        let beforeIDs = Set(before.files.map(\.id))
+        // Remove newly introduced files before restoring old paths.
+        for file in current.files where !beforeIDs.contains(file.id) {
+            operations.append(.delete(fileID: file.id, expectedBaseHash: file.hash))
+        }
+        // Stage renamed files into distinct paths so rename swaps remain atomic.
+        let prefix = "Sources/Restore_" + UUID().uuidString
+        for (index, old) in before.files.enumerated() {
+            if let file = current.file(id: old.id), file.path != old.path {
+                operations.append(.rename(fileID: file.id, expectedBaseHash: file.hash,
+                    newPath: "\(prefix)/\(index).swift"))
+            }
+        }
+        for old in before.files {
+            if let file = current.file(id: old.id) {
+                if file.path != old.path {
+                    operations.append(.rename(fileID: file.id, expectedBaseHash: file.hash, newPath: old.path))
+                }
+                if file.contents != old.contents {
+                    operations.append(.replace(fileID: file.id, expectedBaseHash: file.hash, contents: old.contents))
+                }
+            } else {
+                // A deleted file is recreated with a new stable create identity.
+                operations.append(.create(path: old.path, contents: old.contents))
+            }
+        }
+        return FileChangeSet(baseRevision: current.revision, operations: operations,
+            summary: "恢复上一版源码", origin: .user)
     }
 }

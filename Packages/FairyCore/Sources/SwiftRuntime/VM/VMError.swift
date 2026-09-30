@@ -67,7 +67,16 @@ final class BudgetMeter {
         }
     }
 
+    func checkGrowth(current: Int, adding: Int) throws {
+        try checkCancel()
+        guard current >= 0, adding >= 0, current <= budget.maxCollectionElements,
+              adding <= budget.maxCollectionElements - current else {
+            throw VMError.budget(.collection, "集合增长超过预算")
+        }
+    }
+
     func checkCollection(_ count: Int) throws {
+        try checkCancel()
         if count > budget.maxCollectionElements {
             throw VMError.budget(.collection, "集合元素数超过预算（maxCollectionElements = \(budget.maxCollectionElements)）。")
         }

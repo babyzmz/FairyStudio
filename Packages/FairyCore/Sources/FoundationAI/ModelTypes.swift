@@ -109,11 +109,14 @@ public struct ModelRequest: Sendable, Hashable {
     public var prompt: String
     public var backend: ModelBackend
     public var instructions: String?
+    public var maximumOutputTokens: Int
 
-    public init(prompt: String, backend: ModelBackend = ModelBroker.defaultBackend, instructions: String? = nil) {
+    public init(prompt: String, backend: ModelBackend = ModelBroker.defaultBackend, instructions: String? = nil,
+                maximumOutputTokens: Int = 8192) {
         self.prompt = prompt
         self.backend = backend
         self.instructions = instructions
+        self.maximumOutputTokens = maximumOutputTokens
     }
 }
 

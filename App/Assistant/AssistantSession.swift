@@ -81,7 +81,7 @@ final class AssistantSession {
         foregroundColor、background(颜色)、frame、cornerRadius、opacity、disabled、navigationTitle、\
         buttonStyle(.bordered/.borderedProminent/.plain)、pickerStyle(.segmented/.menu)、tag。
         【状态与数据】@State + struct 模型（memberwise init）、enum 关联值与 switch、元组、\
-        Dictionary/Array/Set 风格的常用方法、String(format:) 的 %.Nf、Date() 只读、math（sqrt/pow/sin/cos…）。\
+        Dictionary/Array 的已登记方法（不支持 Set）、String(format:) 的 %.Nf、Date() 只读、math（sqrt/pow/sin/cos…）。\
         列表更新用下标写回（items[i].x = …）或模型 mutating 方法。
 
         【输出协议】先一句话说明做了什么，然后输出一个 ```json 代码块，内容为 {"operations":[...]}；\
@@ -91,7 +91,7 @@ final class AssistantSession {
 
         【工作方式】
         - 只改必要文件；既有文件用 fileID 标识，新建文件给相对路径（如 Sources/Models/X.swift、Sources/Views/Y.swift）；
-        - 输出尽量短：不加注释与空行、不复述未修改的代码；新建项目最小可运行，每个文件 ≤ 50 行；
+        - 输出尽量短：不加注释与空行、不复述未修改的代码；新建项目保持最小可运行，文件按职责组织；
         - 多文件任务分批：本轮提交一部分，结尾单独输出 [[MORE]]（会自动继续），全部完成则不输出；\
           收到"继续"时接着做下一批，不要重复已完成的内容；
         - 生成后代码会经解释器校验并真实运行，校验失败会把诊断回喂给你修复（最多 2 轮）。
@@ -144,6 +144,7 @@ final class AssistantSession {
     @ObservationIgnored private let consent: CloudConsentStore
     @ObservationIgnored private let validator: any AssistantValidating
     @ObservationIgnored private let runner: (ProgramSource) async -> [Diagnostic]
+    @ObservationIgnored private let preflight: (ProjectSnapshot) async throws -> [Diagnostic]
     /// agent 执行器（FoundationModels 工具循环）：设备端后端时启用；nil = 纯文本路径（云端 / 单测）。
     @ObservationIgnored private let agent: AgentPerforming?
     /// 当前代次：Sendable 盒，供 @Sendable perform/onPartial 闭包读取；新发送先取消旧的，
@@ -173,7 +174,8 @@ final class AssistantSession {
          settings: AssistantSettingsModel,
          validator: (any AssistantValidating)? = nil,
          runner: ((ProgramSource) async -> [Diagnostic])? = nil,
-         agent: AgentPerforming? = nil) {
+         agent: AgentPerforming? = nil,
+         preflight: ((ProjectSnapshot) async throws -> [Diagnostic])? = nil) {
         self.settings = settings
         self.project = project
         self.coordinator = coordinator
@@ -182,11 +184,30 @@ final class AssistantSession {
         self.consent = consent
         self.hasCloudConsent = consent.hasConsented
         self.validator = validator ?? RunCoordinatorValidator(engine: coordinator.engine)
-        self.runner = runner ?? { [weak coordinator] program in
-            guard let coordinator else { return [] }
-            return await AssistantSession.runDefault(program, coordinator: coordinator)
+        self.runner = runner ?? { [weak coordinator, project] program in
+            guard let coordinator else { return [Diagnostic(kind: .internalError, message: "运行环境已关闭")] }
+            let snapshot = await project.snapshot()
+            guard !Task.isCancelled, snapshot.program == program else {
+                return [Diagnostic(kind: .internalError, message: "项目已有新修订或请求已取消，未运行过期代码")]
+            }
+            return await AssistantSession.runDefault(program, coordinator: coordinator,
+                entry: snapshot.entry, revision: snapshot.revision)
         }
         self.agent = agent
+        if let preflight { self.preflight = preflight }
+        else if runner != nil { self.preflight = { _ in [] } } // Explicit injected test runner.
+        else {
+            let engine = coordinator.engine
+            self.preflight = { candidate in
+                let probe = RunCoordinator(engine: engine)
+                await probe.run(candidate.program, entry: candidate.entry, isCandidate: true).value
+                do {
+                    let diagnostics = try await probe.waitUntilReady()
+                    await probe.stop().value
+                    return diagnostics
+                } catch { await probe.stop().value; throw error }
+            }
+        }
         let firstConversation = AssistantConversation()
         conversations = [firstConversation]
         currentConversationID = firstConversation.id
@@ -312,8 +333,8 @@ final class AssistantSession {
     }
 
     private func cancelInflight() {
-        let broker = self.broker
-        Task { await broker.cancelCurrentTask() }
+        // ModelBroker.perform's cancellation handler cancels this exact request.
+        // A fire-and-forget global cancel can race and cancel a newer request.
         inflight?.cancel()
         inflight = nil
     }
@@ -382,12 +403,14 @@ final class AssistantSession {
     private func runTurnFlow(prompt: String, streamID: UUID, generation: UUID,
                              tracker: RepairTracker, repairContext: String?) async {
         let snapshot = await project.snapshot()
+        guard currentGeneration() == generation, !Task.isCancelled else { return }
+        if backend == .openRouter { await broker.selectOpenRouterModel(settings.openRouterModelID) }
         let agentActive = backend == .onDevice && agent != nil
         // agent 路径的提示词只带精简能力摘要（模型可用 readCapability 工具按需查全量），
         // 给 4K 上下文里的文件内容与输出留空间。
         let caps = agentActive
             ? ReadCapabilityTool.summary(entries: SwiftRuntimeEngine.catalog.entries, lineLimit: 12)
-            : ReadCapabilityTool.summary(entries: SwiftRuntimeEngine.catalog.entries)
+            : ReadCapabilityTool.summary(entries: SwiftRuntimeEngine.catalog.entries, lineLimit: 1000)
         let diagText = ReadDiagnosticsTool.summary(diagnostics: coordinator.diagnostics,
                                                    consoleTail: consoleTailStrings())
         let effectivePrompt = discussionOnly ? "【仅讨论】不要修改任何文件，只作解释或建议。\n\(prompt)" : prompt
@@ -474,6 +497,7 @@ final class AssistantSession {
                 await applyAndRun(pending: pending, generation: generation,
                                   tracker: RepairTracker(usedRounds: pending.repairRoundsUsed,
                                                          lastSignature: pending.lastErrorSignature))
+                guard currentGeneration() == generation else { return }
                 // 应用+运行成功后：生成轴回到 idle（更新轴由 updateState 表达）。
                 generationState = .idle
                 // 应用+运行成功后才续作：下一批基于新修订，避免过期哈希。
@@ -519,47 +543,57 @@ final class AssistantSession {
     func restorePreviousVersion(recordID: UUID) {
         guard !isResponding else { return }
         guard let record = appliedRecords.first(where: { $0.id == recordID }) else { return }
-        guard !record.previousFiles.isEmpty else {
-            messages.append(AssistantMessage(kind: .system("该记录没有可恢复的上一版文件（全部为新建）。")))
+        guard let before = record.beforeSnapshot, let after = record.afterSnapshot else {
+            messages.append(AssistantMessage(kind: .system("该历史记录不含完整恢复快照。")))
             return
         }
         isResponding = true
+        let generation = currentGeneration()
         inflight = Task { [weak self] in
             guard let self else { return }
             defer {
-                self.isResponding = false
-                self.currentStreamID = nil
-            }
-            let snapshot = await self.project.snapshot()
-            var ops: [FileOperation] = []
-            for (fileID, path, previousContents) in record.previousFiles {
-                // 优先按 fileID 解析当前文件；找不到（被删除）则按 path 重建。
-                let current = snapshot.file(id: fileID) ?? snapshot.file(path: path)
-                if let current {
-                    ops.append(.replace(fileID: current.id, expectedBaseHash: current.hash, contents: previousContents))
-                } else {
-                    ops.append(.create(path: path, contents: previousContents))
+                if self.currentGeneration() == generation {
+                    self.isResponding = false; self.currentStreamID = nil
                 }
             }
-            let changeSet = FileChangeSet(
-                id: UUID(), baseRevision: snapshot.revision,
-                operations: ops,
-                summary: "恢复上一版（记录 r\(record.revision.rawValue)）",
-                origin: .user)
             do {
-                _ = try await self.project.apply(changeSet)
-                self.updateState = .applied
-                self.messages.append(AssistantMessage(kind: .system("已恢复上一版源码（r\(snapshot.revision.rawValue) → 新修订），业务记录未变动。")))
-                // 恢复后的程序重新运行
+                let current = await self.project.snapshot()
+                try Task.checkCancellation()
+                guard self.currentGeneration() == generation else { throw CancellationError() }
+                let changes = try SourceRestore.changeSet(before: before, after: after, current: current)
+                var candidate = try ChangeSetPreview.apply(changes, to: current)
+                // Restored script files may receive a new file identity.
+                if case let .script(oldID) = before.entry,
+                   let path = before.file(id: oldID)?.path,
+                   let restoredID = candidate.file(path: path)?.id {
+                    candidate.entry = .script(restoredID)
+                } else { candidate.entry = before.entry }
+                let diagnostics = try await self.preflight(candidate)
+                guard !diagnostics.contains(where: { $0.severity == .error }) else {
+                    self.messages.append(AssistantMessage(kind: .diagnostics(diagnostics, "恢复候选未通过，未提交")))
+                    return
+                }
+                try Task.checkCancellation()
+                guard self.currentGeneration() == generation else { throw CancellationError() }
+                _ = try await self.project.apply(changes)
                 let restored = await self.project.snapshot()
-                let program = ProgramSource(moduleName: restored.moduleName, files: restored.files.map {
-                    SourceFile(id: $0.id, path: $0.path, contents: $0.contents)
-                })
-                _ = await self.runner(program)
-                self.runningVersion = restored.revision
+                guard self.currentGeneration() == generation, !Task.isCancelled else { return }
+                let runDiagnostics = await self.runner(restored.program)
+                guard self.currentGeneration() == generation else { return }
+                if runDiagnostics.contains(where: { $0.severity == .error }) {
+                    self.updateState = .failed
+                    self.messages.append(AssistantMessage(kind: .diagnostics(runDiagnostics, "源码已恢复，运行未成功")))
+                } else {
+                    self.runningVersion = restored.revision
+                    self.coordinator.confirmRevision(restored.revision)
+                    self.updateState = .applied
+                    self.messages.append(AssistantMessage(kind: .system("已恢复上一版源码；未回滚业务数据。")))
+                }
+            } catch is CancellationError {
+                // No commit starts after cancellation; a completed atomic commit is not undone.
             } catch {
                 self.updateState = .failed
-                self.messages.append(AssistantMessage(kind: .system("恢复失败：\(error)")))
+                self.messages.append(AssistantMessage(kind: .system("恢复失败（可能已有后续修改）：\(error)")))
             }
         }
     }
@@ -588,6 +622,7 @@ final class AssistantSession {
     private func applyAndRun(pending: PendingChange, generation: UUID, tracker: RepairTracker) async {
         setCardStatus(pending.changeSet.id, status: .applying)
         let fresh = await project.snapshot()
+        guard currentGeneration() == generation, !Task.isCancelled else { return }
         guard fresh.revision == pending.changeSet.baseRevision else {
             setCardStatus(pending.changeSet.id, status: .expired)
             messages.append(AssistantMessage(kind: .system("项目已有新版本，补丁过期，请重新发送。")))
@@ -596,10 +631,20 @@ final class AssistantSession {
             return
         }
         do {
+            let candidateDiagnostics = try await preflight(pending.candidate)
+            try Task.checkCancellation()
+            guard currentGeneration() == generation else { throw CancellationError() }
+            guard !candidateDiagnostics.contains(where: { $0.severity == .error }) else {
+                setCardStatus(pending.changeSet.id, status: .applyFailed("候选试运行失败，原代码未提交"))
+                messages.append(AssistantMessage(kind: .diagnostics(candidateDiagnostics, "候选未通过，原作品未替换")))
+                isResponding = false; currentStreamID = nil
+                return
+            }
+            // The actor checks cancellation again at its synchronous commit boundary.
             // 结果（新修订等）不经此更新：快照刷新走 store 的 snapshots 订阅。
             _ = try await project.apply(pending.changeSet)
             // 该候选程序即将成为运行实例：记录其源码修订（P0 状态契约）。
-            runningVersion = pending.candidate.revision
+            // runningVersion is published only after confirmed startup, never before apply.
             // 应用记录（恢复上一版的数据来源：受影响文件的上一版内容；业务数据不在源码快照内，不受影响）。
             let previousFiles: [(FileID, String, String)] = pending.changeSet.operations.compactMap { op in
                 switch op {
@@ -617,8 +662,9 @@ final class AssistantSession {
                 id: pending.changeSet.id, revision: pending.candidate.revision,
                 backend: pending.backendName, timestamp: Date(),
                 files: pending.files.map { ($0.fileID?.rawValue ?? $0.path, $0.path, $0.addedLines, $0.removedLines) },
-                previousFiles: previousFiles))
+                previousFiles: previousFiles, beforeSnapshot: fresh, afterSnapshot: pending.candidate))
         } catch let error as ChangeSetError {
+            guard currentGeneration() == generation else { return }
             switch error {
             case .hashMismatch, .revisionMismatch:
                 setCardStatus(pending.changeSet.id, status: .expired)
@@ -631,6 +677,7 @@ final class AssistantSession {
             currentStreamID = nil
             return
         } catch {
+            guard currentGeneration() == generation else { return }
             setCardStatus(pending.changeSet.id, status: .applyFailed(String(describing: error)))
             isResponding = false
             currentStreamID = nil
@@ -638,16 +685,18 @@ final class AssistantSession {
         }
         guard currentGeneration() == generation else {
             // 取消恰好落在应用之后：已落盘，如实标记，不再运行。
-            setCardStatus(pending.changeSet.id, status: .applied)
-            messages.append(AssistantMessage(kind: .system("已应用（取消前提交），未运行。")))
-            isResponding = false
-            currentStreamID = nil
+            setCardStatus(pending.changeSet.id, status: .applied, updateCurrentState: false)
             return
         }
-        let diags = await runner(pending.candidate.program)
+        let committed = await project.snapshot()
+        guard currentGeneration() == generation, !Task.isCancelled else { return }
+        // Use committed identities; do not run a stale/candidate-only file identity.
+        let diags = await runner(committed.program)
         guard currentGeneration() == generation else { return }
         let errors = diags.filter { $0.severity == .error }
         if errors.isEmpty {
+            runningVersion = committed.revision
+            coordinator.confirmRevision(committed.revision)
             setCardStatus(pending.changeSet.id, status: .applied)
             if !diags.isEmpty {
                 messages.append(AssistantMessage(kind: .diagnostics(diags, "运行完成（有警告）")))
@@ -678,17 +727,14 @@ final class AssistantSession {
                           repairContext: "上一轮修改已应用并运行，但运行失败，诊断如下，请针对性修正：\n\(diagText)")
     }
 
-    // MARK: - 默认运行（apply 后运行并等终态，只读 coordinator 数据）
+    // MARK: - 默认运行（确认首帧或脚本完成；交互作品不等待终止）
 
-    private static func runDefault(_ program: ProgramSource, coordinator: RunCoordinator) async -> [Diagnostic] {
-        let task = coordinator.run(program)
+    private static func runDefault(_ program: ProgramSource, coordinator: RunCoordinator,
+                                   entry: EntryPoint?, revision: ProjectRevision) async -> [Diagnostic] {
+        let task = coordinator.run(program, entry: entry, sourceRevision: revision)
         await task.value
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: .seconds(30))
-        while !coordinator.state.isTerminal, clock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(50))
-        }
-        return coordinator.diagnostics
+        do { return try await coordinator.waitUntilReady() }
+        catch { return [Diagnostic(kind: .internalError, message: "等待启动已取消")] }
     }
 
     // MARK: - 消息辅助
@@ -707,7 +753,7 @@ final class AssistantSession {
         messages[i].kind = kind
     }
 
-    private func setCardStatus(_ changeSetID: UUID, status: AssistantCardStatus) {
+    private func setCardStatus(_ changeSetID: UUID, status: AssistantCardStatus, updateCurrentState: Bool = true) {
         guard let i = messages.firstIndex(where: {
             if case let .change(p, _) = $0.kind { return p.changeSet.id == changeSetID }
             return false
@@ -715,7 +761,7 @@ final class AssistantSession {
         if case let .change(pending, _) = messages[i].kind {
             messages[i].kind = .change(pending, status)
         }
-        updateState = UpdateState(from: status)
+        if updateCurrentState { updateState = UpdateState(from: status) }
     }
 
     private func recentHistory(limit: Int = 6) -> [TurnMessage] {

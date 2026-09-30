@@ -11,6 +11,7 @@ enum Inflate {
     }
 
     static func decode(_ data: Data, expectedSize: Int) throws -> Data {
+        guard expectedSize >= 0 else { throw InflateError.invalidBlock }
         var reader = BitReader(data: data)
         var out = Data()
         out.reserveCapacity(min(max(expectedSize, 0), 8 << 20))
@@ -43,13 +44,15 @@ enum Inflate {
     private static func decodeBlock(reader: inout BitReader, litLen: Huffman, dist: Huffman,
                                     output: inout Data, cap: Int) throws {
         while true {
+            if output.count & 1023 == 0 { try Task.checkCancellation() }
             let sym = try litLen.decode(from: &reader)
             if sym < 256 {
-                guard output.count < cap + (1 << 20) else { throw InflateError.invalidBlock }
+                guard output.count < cap else { throw InflateError.invalidBlock }
                 output.append(UInt8(sym))
             } else if sym == 256 {
                 return
             } else {
+                guard sym <= 285 else { throw InflateError.invalidSymbol }
                 let (base, extra) = lengthBaseExtra(sym)
                 var length = base + Int(try reader.bits(extra, "长度附加"))
                 let dsym = Int(try dist.decode(from: &reader))
@@ -57,7 +60,7 @@ enum Inflate {
                 let (dbase, dextra) = distBaseExtra(dsym)
                 let distance = dbase + Int(try reader.bits(dextra, "距离附加"))
                 guard distance >= 1, distance <= output.count else { throw InflateError.overlongDistance }
-                guard output.count + length <= cap + (1 << 20) else { throw InflateError.invalidBlock }
+                guard output.count <= cap && length <= cap - output.count else { throw InflateError.invalidBlock }
                 // 重叠拷贝必须逐字节（memmove 语义）。
                 var from = output.count - distance
                 while length > 0 {
@@ -176,7 +179,7 @@ private struct BitReader {
         }
         let rest = n - out.count
         guard rest >= 0, bytePos + rest <= data.count else { throw Inflate.InflateError.truncated }
-        guard have + n <= cap + (1 << 20) else { throw Inflate.InflateError.invalidBlock }
+        guard have <= cap && n <= cap - have else { throw Inflate.InflateError.invalidBlock }
         if rest > 0 { out.append(data[bytePos..<bytePos + rest]) }
         bytePos += rest
         return out

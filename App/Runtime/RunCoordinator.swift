@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import RuntimeContracts
+import ProjectContracts
 
 /// 一次运行的控制台输出行。
 struct ConsoleEntry: Identifiable, Hashable, Sendable {
@@ -25,6 +26,9 @@ final class RunCoordinator {
     private(set) var state: RunState = .idle
     /// 当前（或最近一次）运行的 RunID；仅用于显示。
     private(set) var displayedRunID: RunID?
+    private(set) var runningRevision: ProjectRevision?
+    private var pendingRevision: ProjectRevision?
+    private var eventsHaveEnded = false
     private(set) var tree: RenderTree?
     private(set) var console: [ConsoleEntry] = []
     private(set) var diagnostics: [Diagnostic] = []
@@ -81,10 +85,11 @@ final class RunCoordinator {
     /// 运行（若已有实例则先停止）。返回的任务完成时，新实例已启动或已失败。
     /// - entry：项目声明的入口（M1 起来自 manifest）；nil 时取校验结果中的第一个入口。
     @discardableResult
-    func run(_ program: ProgramSource, entry: EntryPoint? = nil, budget: ExecutionBudget = .default) -> Task<Void, Never> {
+    func run(_ program: ProgramSource, entry: EntryPoint? = nil, budget: ExecutionBudget = .default,
+             sourceRevision: ProjectRevision? = nil, isCandidate: Bool = false) -> Task<Void, Never> {
         runRequestedAt = clock.now
         return enqueue { coordinator in
-            await coordinator.performRun(program, entry: entry, budget: budget)
+            await coordinator.performRun(program, entry: entry, budget: budget, sourceRevision: sourceRevision, isCandidate: isCandidate)
         }
     }
 
@@ -210,12 +215,25 @@ final class RunCoordinator {
             runRequestedAt = nil
         }
         tree = newTree
+        runningRevision = pendingRevision
     }
 
     // MARK: - 生命周期
 
-    private func performRun(_ program: ProgramSource, entry preferredEntry: EntryPoint?, budget: ExecutionBudget) async {
+    private func performRun(_ program: ProgramSource, entry preferredEntry: EntryPoint?, budget: ExecutionBudget,
+                            sourceRevision: ProjectRevision?, isCandidate: Bool) async {
+        // Validate before touching the currently usable instance.
+        let validationStart = clock.now
+        let validation = await engine.validate(program)
+        lastValidationDuration = clock.now - validationStart
+        guard validation.isRunnable else {
+            diagnostics = validation.diagnostics
+            if !isActive { setState(.failed); exitReason = .validationFailed }
+            return
+        }
+        guard !Task.isCancelled else { return }
         await performStop(reason: "重新运行")
+        pendingRevision = sourceRevision
         tree = nil
         diagnostics = []
         exitReason = nil
@@ -225,9 +243,6 @@ final class RunCoordinator {
         stateHistory = [state]
 
         setState(.validating)
-        let validationStart = clock.now
-        let validation = await engine.validate(program)
-        lastValidationDuration = clock.now - validationStart
         diagnostics = validation.diagnostics
         guard validation.isRunnable else {
             // 与引擎内的校验失败一致（CR-1）：状态 failed，终止原因 validationFailed。
@@ -242,7 +257,7 @@ final class RunCoordinator {
         let entry = preferredEntry ?? validation.entryPoints.first ?? .rootView(symbol: "ContentView")
         do {
             let newHandle = try await engine.run(program, entry: entry, budget: budget,
-                                                 options: RunOptions(runtimeVersion: engine.runtimeVersion))
+                                                 options: RunOptions(runtimeVersion: engine.runtimeVersion, isCandidate: isCandidate))
             startedRunCount += 1
             attach(newHandle)
         } catch {
@@ -253,6 +268,7 @@ final class RunCoordinator {
     }
 
     private func attach(_ newHandle: any RunHandle) {
+        eventsHaveEnded = false
         let runID = newHandle.runID
         handle = newHandle
         activeInstanceCount = 1
@@ -281,6 +297,7 @@ final class RunCoordinator {
     /// 事件流自然结束（引擎完成、预算中断等）：释放实例。
     private func eventsEnded(for runID: RunID) {
         guard activeRunID == runID else { return }
+        eventsHaveEnded = true
         enqueue { coordinator in
             guard coordinator.activeRunID == runID else { return }
             await coordinator.performStop(reason: "运行已结束")
@@ -299,7 +316,11 @@ final class RunCoordinator {
         inputTask = nil
 
         if let eventTask {
-            let drained = await Self.wait(for: eventTask, timeout: .seconds(1))
+            let deadline = clock.now.advanced(by: .seconds(1))
+            while !eventsHaveEnded, clock.now < deadline, !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(10)) } catch { break }
+            }
+            let drained = eventsHaveEnded
             if !drained {
                 eventTask.cancel()
                 diagnostics.append(Diagnostic(kind: .internalError, severity: .warning,
@@ -314,6 +335,7 @@ final class RunCoordinator {
             appendConsole(.debug, "引擎未报告停止状态，以 stop() 返回为准", runID: runID)
         }
         activeRunID = nil
+        runningRevision = nil
         handle = nil
         activeInstanceCount = 0
         releasedInstanceCount += 1
@@ -322,20 +344,26 @@ final class RunCoordinator {
         appendConsole(.debug, "实例已释放（\(reason)）", runID: runID)
     }
 
-    private static func wait(for task: Task<Void, Never>, timeout: Duration) async -> Bool {
-        await withTaskGroup(of: Bool.self) { group in
-            group.addTask {
-                await task.value
-                return true
+    func confirmRevision(_ revision: ProjectRevision) {
+        if state == .running, tree?.runID == activeRunID { runningRevision = revision }
+    }
+
+    /// Startup readiness, not the eventual termination of an interactive app.
+    func waitUntilReady(timeout: Duration = .seconds(10)) async throws -> [Diagnostic] {
+        let expected = displayedRunID
+        let deadline = clock.now.advanced(by: timeout)
+        while clock.now < deadline {
+            try Task.checkCancellation()
+            guard displayedRunID == expected else { throw CancellationError() }
+            if let tree, tree.runID == expected, state == .running { return diagnostics }
+            if state.isTerminal {
+                if case .completed? = exitReason { return diagnostics }
+                if diagnostics.contains(where: { $0.severity == .error }) { return diagnostics }
+                return diagnostics + [Diagnostic(kind: .internalError, message: "作品未成功启动")]
             }
-            group.addTask {
-                try? await Task.sleep(for: timeout)
-                return false
-            }
-            let first = await group.next() ?? false
-            group.cancelAll()
-            return first
+            try await Task.sleep(for: .milliseconds(10))
         }
+        return diagnostics + [Diagnostic(kind: .internalError, message: "等待首帧超时，未确认运行成功")]
     }
 
     // MARK: - 辅助
